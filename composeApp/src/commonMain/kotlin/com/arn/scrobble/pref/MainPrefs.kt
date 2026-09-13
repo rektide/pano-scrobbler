@@ -14,6 +14,7 @@ import com.arn.scrobble.api.lastfm.CookieSerializable
 import com.arn.scrobble.api.lastfm.LastfmPeriod
 import com.arn.scrobble.atproto.oauth.AtProtoSession
 import com.arn.scrobble.atproto.oauth.PendingAuthorization
+import com.arn.scrobble.atproto.posting.AtProtoTarget
 import com.arn.scrobble.charts.TimePeriod
 import com.arn.scrobble.charts.TimePeriodType
 import com.arn.scrobble.edits.RegexPreset
@@ -85,6 +86,8 @@ data class MainPrefs(
     val scrobbleAccounts: List<UserAccountSerializable> = emptyList(),
     val atProtoAuthorizationStates: Map<String, PendingAuthorization> = emptyMap(),
     val atProtoSessions: Map<String, AtProtoSession> = emptyMap(),
+    val atProtoTargets: Map<String, Set<AtProtoTarget>> = emptyMap(),
+    val atProtoPartialPosts: Map<String, Set<AtProtoTarget>> = emptyMap(),
     val drawerData: Map<AccountType, DrawerData> = emptyMap(),
     val randomType: Int = Stuff.TYPE_TRACKS,
     val userTopTagsFetched: Boolean = false,
