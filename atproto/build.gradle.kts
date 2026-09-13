@@ -13,5 +13,6 @@ dependencies {
     implementation(libs.ktor.client.core)
 
     testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.client.mock)
 }

@@ -34,3 +34,8 @@ internal fun normalizeHtu(value: String): String {
 
     return "$scheme://$renderedHost$port$path"
 }
+
+internal fun httpOrigin(value: String): String {
+    val normalized = URI(normalizeHtu(value))
+    return "${normalized.scheme}://${normalized.rawAuthority}"
+}
