@@ -1,14 +1,11 @@
 package com.arn.scrobble.atproto.repo
 
 import com.arn.scrobble.atproto.crypto.generateP256PrivateJwk
-import com.arn.scrobble.atproto.oauth.AtProtoOAuthClient
 import com.arn.scrobble.atproto.oauth.AtProtoSession
+import com.arn.scrobble.atproto.oauth.AtProtoSessionClient
 import com.arn.scrobble.atproto.oauth.AtProtoSessionStore
 import com.arn.scrobble.atproto.oauth.AtProtoToken
 import com.arn.scrobble.atproto.oauth.AuthorizationServerMetadata
-import com.arn.scrobble.atproto.oauth.AuthorizationStateStore
-import com.arn.scrobble.atproto.oauth.OAuthClientConfig
-import com.arn.scrobble.atproto.oauth.PendingAuthorization
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -154,17 +151,8 @@ private class RepositoryFixture(private val rejectFirstAccessToken: Boolean = fa
             else -> error("Unexpected request ${request.url}")
         }
     })
-    private val oauth = AtProtoOAuthClient(
-        httpClient = http,
-        config = OAuthClientConfig(
-            clientId = "https://app.example.com/client.json",
-            redirectUri = "com.example.app:/callback",
-            scope = "atproto repo:fm.teal.feed.play?action=create repo:app.rocksky.scrobble?action=create",
-        ),
-        authorizationStates = NoAuthorizationStates,
-        sessions = sessions,
-    )
-    val repository = AtProtoRepository(http, oauth)
+    private val sessionClient = AtProtoSessionClient(http, sessions)
+    val repository = AtProtoRepository(http, sessionClient)
 
     private fun requestRecordCollection(request: HttpRequestData): String =
         Json.parseToJsonElement(request.bodyText()).jsonObject["collection"]!!.jsonPrimitive.content
@@ -225,12 +213,6 @@ private class RepositorySessionStore(initial: AtProtoSession) : AtProtoSessionSt
     override suspend fun delete(did: String) {
         if (session?.did == did) session = null
     }
-}
-
-private object NoAuthorizationStates : AuthorizationStateStore {
-    override suspend fun put(authorization: PendingAuthorization) = error("Not used")
-
-    override suspend fun take(state: String): PendingAuthorization? = null
 }
 
 private fun HttpRequestData.bodyText(): String = when (val content = body) {

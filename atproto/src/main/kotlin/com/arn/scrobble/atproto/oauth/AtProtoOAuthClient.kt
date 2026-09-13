@@ -13,17 +13,13 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.time.Clock
-import java.util.concurrent.ConcurrentHashMap
 
 private const val AUTHORIZATION_LIFETIME_MILLIS = 10 * 60 * 1_000L
-private const val TOKEN_REFRESH_MARGIN_MILLIS = 60 * 1_000L
 
 class AtProtoOAuthClient internal constructor(
     private val httpClient: HttpClient,
@@ -54,7 +50,13 @@ class AtProtoOAuthClient internal constructor(
     )
 
     private val nonces = DpopNonceStore()
-    private val refreshLocks = ConcurrentHashMap<String, Mutex>()
+    val sessionClient = AtProtoSessionClient(
+        httpClient = httpClient,
+        sessions = sessions,
+        discovery = discovery,
+        clock = clock,
+        json = json,
+    )
 
     suspend fun beginAuthorization(identifier: String): AuthorizationLaunch {
         val discovered = discovery.resolve(identifier)
@@ -168,60 +170,16 @@ class AtProtoOAuthClient internal constructor(
     }
 
     suspend fun getSession(did: String): AtProtoSession {
-        val session = sessions.get(did) ?: throw AtProtoOAuthException("AT Protocol session not found")
-        if (session.token.isUsable(clock)) return session
-        return refreshSession(did)
+        return sessionClient.getSession(did)
     }
 
     suspend fun refreshSession(
         did: String,
         staleAccessToken: String? = null,
-    ): AtProtoSession = refreshLocks.computeIfAbsent(did) { Mutex() }.withLock {
-        val current = sessions.get(did) ?: throw AtProtoOAuthException("AT Protocol session not found")
-        if (staleAccessToken != null && current.token.accessToken != staleAccessToken) return@withLock current
-        if (staleAccessToken == null && current.token.isUsable(clock)) return@withLock current
-        val refreshToken = current.token.refreshToken
-            ?: throw AtProtoOAuthException("AT Protocol session has no refresh token")
-
-        val verified = discovery.resolve(did)
-        require(verified.authorizationServer.issuer == current.authorizationServer.issuer) {
-            "AT Protocol account is no longer controlled by the session authorization server"
-        }
-        val response = tokenRequest(
-            server = current.authorizationServer,
-            key = current.dpopKey,
-            values = mapOf(
-                "grant_type" to "refresh_token",
-                "client_id" to current.clientId,
-                "refresh_token" to refreshToken,
-            ),
-        )
-        val tokenResponse = response.decodeOAuthResponse<TokenResponse>(json, "token")
-        require(tokenResponse.subject == did) { "Refreshed token subject does not match the session" }
-        val refreshed = current.copy(
-            handle = verified.identity.handle ?: current.handle,
-            pds = verified.identity.pds,
-            authorizationServer = verified.authorizationServer,
-            token = tokenResponse.toToken(clock, previousRefreshToken = refreshToken),
-        )
-        sessions.put(refreshed)
-        refreshed
-    }
+    ): AtProtoSession = sessionClient.refreshSession(did, staleAccessToken)
 
     suspend fun revokeSession(did: String) {
-        val session = sessions.get(did)
-        try {
-            if (session != null) {
-                bestEffortRevoke(
-                    server = session.authorizationServer,
-                    key = session.dpopKey,
-                    clientId = session.clientId,
-                    token = session.token.refreshToken ?: session.token.accessToken,
-                )
-            }
-        } finally {
-            sessions.delete(did)
-        }
+        sessionClient.revokeSession(did)
     }
 
     private suspend fun tokenRequest(
@@ -268,7 +226,7 @@ private data class ParResponse(
 )
 
 @Serializable
-private data class TokenResponse(
+internal data class TokenResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("token_type") val tokenType: String,
@@ -278,12 +236,12 @@ private data class TokenResponse(
 )
 
 @Serializable
-private data class OAuthErrorResponse(
+internal data class OAuthErrorResponse(
     val error: String? = null,
     @SerialName("error_description") val errorDescription: String? = null,
 )
 
-private fun TokenResponse.toToken(
+internal fun TokenResponse.toToken(
     clock: Clock,
     previousRefreshToken: String? = null,
 ): AtProtoToken {
@@ -301,10 +259,7 @@ private fun TokenResponse.toToken(
     )
 }
 
-private fun AtProtoToken.isUsable(clock: Clock): Boolean =
-    expiresAt == null || clock.millis() + TOKEN_REFRESH_MARGIN_MILLIS <= expiresAt
-
-private inline fun <reified T> BufferedHttpResponse.decodeOAuthResponse(json: Json, label: String): T {
+internal inline fun <reified T> BufferedHttpResponse.decodeOAuthResponse(json: Json, label: String): T {
     val contentType = headers["Content-Type"]?.substringBefore(';')?.trim()?.lowercase()
     require(contentType == "application/json") { "OAuth $label response is not JSON" }
     if (!status.isSuccess()) {

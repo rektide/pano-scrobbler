@@ -4,8 +4,8 @@ import com.arn.scrobble.atproto.http.BufferedHttpResponse
 import com.arn.scrobble.atproto.http.DpopHttp
 import com.arn.scrobble.atproto.http.DpopNonceStore
 import com.arn.scrobble.atproto.http.DpopServer
-import com.arn.scrobble.atproto.oauth.AtProtoOAuthClient
 import com.arn.scrobble.atproto.oauth.AtProtoSession
+import com.arn.scrobble.atproto.oauth.AtProtoSessionClient
 import com.arn.scrobble.atproto.oauth.DpopProofFactory
 import io.ktor.client.HttpClient
 import io.ktor.client.request.accept
@@ -36,7 +36,7 @@ class AtProtoRepositoryException(
 
 internal class AtProtoRepository(
     private val httpClient: HttpClient,
-    private val oauthClient: AtProtoOAuthClient,
+    private val sessionClient: AtProtoSessionClient,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
     private val nonces = DpopNonceStore()
@@ -50,11 +50,11 @@ internal class AtProtoRepository(
             "AT Protocol record type must match its collection"
         }
 
-        var session = oauthClient.getSession(did)
+        var session = sessionClient.getSession(did)
         repeat(2) { attempt ->
             val response = createRecord(session, collection, record)
             if (attempt == 0 && response.isInvalidToken()) {
-                session = oauthClient.refreshSession(did, staleAccessToken = session.token.accessToken)
+                session = sessionClient.refreshSession(did, staleAccessToken = session.token.accessToken)
             } else {
                 return response.decodeCreateRecord(json)
             }

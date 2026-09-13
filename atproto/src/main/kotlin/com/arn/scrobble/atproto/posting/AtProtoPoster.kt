@@ -1,6 +1,6 @@
 package com.arn.scrobble.atproto.posting
 
-import com.arn.scrobble.atproto.oauth.AtProtoOAuthClient
+import com.arn.scrobble.atproto.oauth.AtProtoSessionClient
 import com.arn.scrobble.atproto.repo.AtProtoRepository
 import com.arn.scrobble.atproto.repo.CreatedRecord
 import io.ktor.client.HttpClient
@@ -37,11 +37,11 @@ class AtProtoPoster internal constructor(
 ) {
     constructor(
         httpClient: HttpClient,
-        oauthClient: AtProtoOAuthClient,
+        sessionClient: AtProtoSessionClient,
         config: AtProtoPostingConfig = AtProtoPostingConfig(),
     ) : this(
         config = config,
-        createRecord = AtProtoRepository(httpClient, oauthClient)::createRecord,
+        createRecord = AtProtoRepository(httpClient, sessionClient)::createRecord,
         json = Json { explicitNulls = false },
     )
 
