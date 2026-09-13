@@ -92,6 +92,8 @@ class AtProtoOAuthClient internal constructor(
         authorizationStates.put(
             PendingAuthorization(
                 state = state,
+                clientId = config.clientId,
+                redirectUri = config.redirectUri,
                 expectedIdentity = discovered.identity,
                 authorizationServer = discovered.authorizationServer,
                 verifier = pkce.verifier,
@@ -125,8 +127,8 @@ class AtProtoOAuthClient internal constructor(
             key = pending.dpopKey,
             values = mapOf(
                 "grant_type" to "authorization_code",
-                "client_id" to config.clientId,
-                "redirect_uri" to config.redirectUri,
+                "client_id" to pending.clientId,
+                "redirect_uri" to pending.redirectUri,
                 "code" to code,
                 "code_verifier" to pending.verifier,
             ),
@@ -144,6 +146,7 @@ class AtProtoOAuthClient internal constructor(
             }
             val session = AtProtoSession(
                 did = tokenResponse.subject,
+                clientId = pending.clientId,
                 handle = verified.identity.handle ?: pending.expectedIdentity.handle,
                 pds = verified.identity.pds,
                 authorizationServer = verified.authorizationServer,
@@ -154,7 +157,12 @@ class AtProtoOAuthClient internal constructor(
             return session
         } catch (cause: Exception) {
             if (cause is CancellationException) throw cause
-            bestEffortRevoke(pending.authorizationServer, pending.dpopKey, tokenResponse.accessToken)
+            bestEffortRevoke(
+                pending.authorizationServer,
+                pending.dpopKey,
+                pending.clientId,
+                tokenResponse.accessToken,
+            )
             throw cause
         }
     }
@@ -184,7 +192,7 @@ class AtProtoOAuthClient internal constructor(
             key = current.dpopKey,
             values = mapOf(
                 "grant_type" to "refresh_token",
-                "client_id" to config.clientId,
+                "client_id" to current.clientId,
                 "refresh_token" to refreshToken,
             ),
         )
@@ -207,6 +215,7 @@ class AtProtoOAuthClient internal constructor(
                 bestEffortRevoke(
                     server = session.authorizationServer,
                     key = session.dpopKey,
+                    clientId = session.clientId,
                     token = session.token.refreshToken ?: session.token.accessToken,
                 )
             }
@@ -231,6 +240,7 @@ class AtProtoOAuthClient internal constructor(
     private suspend fun bestEffortRevoke(
         server: AuthorizationServerMetadata,
         key: P256PrivateJwk,
+        clientId: String,
         token: String,
     ) {
         val endpoint = server.revocationEndpoint ?: return
@@ -241,7 +251,7 @@ class AtProtoOAuthClient internal constructor(
                 server = DpopServer.AUTHORIZATION,
             ) {
                 contentType(ContentType.Application.FormUrlEncoded)
-                setBody(formEncode(mapOf("token" to token, "client_id" to config.clientId)))
+                setBody(formEncode(mapOf("token" to token, "client_id" to clientId)))
             }
         } catch (cause: CancellationException) {
             throw cause

@@ -88,6 +88,7 @@ private class RepositoryFixture(private val rejectFirstAccessToken: Boolean = fa
     val sessions = RepositorySessionStore(
         AtProtoSession(
             did = did,
+            clientId = "https://app.example.com/client.json",
             handle = "alice.bsky.social",
             pds = "https://pds.example.com",
             authorizationServer = server,

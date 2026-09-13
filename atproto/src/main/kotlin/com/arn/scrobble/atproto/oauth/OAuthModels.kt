@@ -8,6 +8,8 @@ import java.net.URI
 @Serializable
 data class PendingAuthorization(
     val state: String,
+    val clientId: String,
+    val redirectUri: String,
     val expectedIdentity: ResolvedIdentity,
     val authorizationServer: AuthorizationServerMetadata,
     val verifier: String,
@@ -34,6 +36,7 @@ data class AtProtoToken(
 @Serializable
 data class AtProtoSession(
     val did: String,
+    val clientId: String,
     val handle: String? = null,
     val pds: String,
     val authorizationServer: AuthorizationServerMetadata,
