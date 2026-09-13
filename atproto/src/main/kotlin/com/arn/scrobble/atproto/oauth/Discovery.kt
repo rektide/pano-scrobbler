@@ -18,7 +18,7 @@ internal data class DiscoveredAccount(
 )
 
 @Serializable
-internal data class AuthorizationServerMetadata(
+data class AuthorizationServerMetadata(
     val issuer: String,
     @SerialName("authorization_endpoint") val authorizationEndpoint: String,
     @SerialName("token_endpoint") val tokenEndpoint: String,
@@ -30,11 +30,14 @@ internal data class AuthorizationServerMetadata(
     @SerialName("grant_types_supported") val grantTypesSupported: List<String> = emptyList(),
     @SerialName("code_challenge_methods_supported") val codeChallengeMethodsSupported: List<String> = emptyList(),
     @SerialName("token_endpoint_auth_methods_supported") val tokenEndpointAuthMethodsSupported: List<String> = emptyList(),
+    @SerialName("token_endpoint_auth_signing_alg_values_supported")
+    val tokenEndpointAuthSigningAlgorithmsSupported: List<String> = emptyList(),
     @SerialName("scopes_supported") val scopesSupported: List<String> = emptyList(),
     @SerialName("dpop_signing_alg_values_supported") val dpopSigningAlgorithmsSupported: List<String> = emptyList(),
     @SerialName("authorization_response_iss_parameter_supported")
     val authorizationResponseIssuerParameterSupported: Boolean = false,
     @SerialName("require_pushed_authorization_requests") val requiresPushedAuthorizationRequests: Boolean = false,
+    @SerialName("require_request_uri_registration") val requiresRequestUriRegistration: Boolean? = null,
     @SerialName("client_id_metadata_document_supported") val clientIdMetadataDocumentSupported: Boolean = false,
 )
 
@@ -101,8 +104,14 @@ private fun validateAuthorizationServer(
         "Authorization server does not support refresh-token grants"
     }
     require("S256" in server.codeChallengeMethodsSupported) { "Authorization server does not support PKCE S256" }
-    require("none" in server.tokenEndpointAuthMethodsSupported) {
-        "Authorization server does not support public clients"
+    require("none" in server.tokenEndpointAuthMethodsSupported && "private_key_jwt" in server.tokenEndpointAuthMethodsSupported) {
+        "Authorization server does not support required public and confidential client methods"
+    }
+    require(
+        "ES256" in server.tokenEndpointAuthSigningAlgorithmsSupported &&
+            "none" !in server.tokenEndpointAuthSigningAlgorithmsSupported,
+    ) {
+        "Authorization server does not support ES256 client authentication"
     }
     require("atproto" in server.scopesSupported) { "Authorization server does not support the atproto scope" }
     require("ES256" in server.dpopSigningAlgorithmsSupported) { "Authorization server does not support ES256 DPoP" }
@@ -110,6 +119,9 @@ private fun validateAuthorizationServer(
         "Authorization server does not support callback issuer parameters"
     }
     require(server.requiresPushedAuthorizationRequests) { "Authorization server does not require PAR" }
+    require(server.requiresRequestUriRegistration != false) {
+        "Authorization server permits unregistered request URIs"
+    }
     require(server.clientIdMetadataDocumentSupported) {
         "Authorization server does not support client metadata documents"
     }

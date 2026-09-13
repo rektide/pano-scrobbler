@@ -3,6 +3,7 @@ package com.arn.scrobble.atproto.identity
 import com.arn.scrobble.atproto.http.fetchJson
 import com.arn.scrobble.atproto.http.httpOrigin
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -14,7 +15,7 @@ import java.nio.charset.StandardCharsets
 private val PLC_DID = Regex("^did:plc:[a-z2-7]{24}$")
 
 @Serializable
-internal data class ResolvedIdentity(
+data class ResolvedIdentity(
     val did: String,
     val handle: String?,
     val pds: String,
@@ -86,7 +87,14 @@ internal class IdentityResolver(
         for (alias in document.alsoKnownAs) {
             if (!alias.startsWith("at://")) continue
             val handle = runCatching { normalizeHandle(alias.removePrefix("at://")) }.getOrNull() ?: continue
-            if (runCatching { resolveHandle(handle) }.getOrNull() == did) return handle
+            val resolved = try {
+                resolveHandle(handle)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (_: Exception) {
+                null
+            }
+            if (resolved == did) return handle
         }
         return null
     }
