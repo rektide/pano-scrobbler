@@ -12,6 +12,8 @@ import com.arn.scrobble.api.UserAccountSerializable
 import com.arn.scrobble.api.UserCached
 import com.arn.scrobble.api.lastfm.CookieSerializable
 import com.arn.scrobble.api.lastfm.LastfmPeriod
+import com.arn.scrobble.atproto.oauth.AtProtoSession
+import com.arn.scrobble.atproto.oauth.PendingAuthorization
 import com.arn.scrobble.charts.TimePeriod
 import com.arn.scrobble.charts.TimePeriodType
 import com.arn.scrobble.edits.RegexPreset
@@ -81,6 +83,8 @@ data class MainPrefs(
     val lastChartsCustomPeriod: TimePeriod = TimePeriod(1767225600000, 1798761600000), // 2026
     val currentAccountType: AccountType = AccountType.LASTFM,
     val scrobbleAccounts: List<UserAccountSerializable> = emptyList(),
+    val atProtoAuthorizationStates: Map<String, PendingAuthorization> = emptyMap(),
+    val atProtoSessions: Map<String, AtProtoSession> = emptyMap(),
     val drawerData: Map<AccountType, DrawerData> = emptyMap(),
     val randomType: Int = Stuff.TYPE_TRACKS,
     val userTopTagsFetched: Boolean = false,

@@ -125,6 +125,7 @@ kotlin {
             implementation(libs.nanohttpd)
             implementation(libs.room.runtime)
             implementation(libs.cryptohash)
+            implementation(projects.atproto)
             implementation(projects.extrasCommon)
             implementation(projects.materialColorUtilities)
         }
