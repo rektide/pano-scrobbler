@@ -16,10 +16,10 @@ sources:
     resource: https://github.com/rektide/rektide.github.io/tree/55702c90dc6b94409e30632712662e3e5816259e/src/routes/oauth
     title: Web Scrobbler OAuth relay implementation
   - id: teal-lexicon
-    resource: https://lexicon.garden/fm.teal.feed.play
+    resource: https://lexicon.garden/nsid/fm.teal.feed.play
     title: Published Teal play lexicon
   - id: rocksky-lexicon
-    resource: https://lexicon.garden/app.rocksky.scrobble
+    resource: https://lexicon.garden/nsid/app.rocksky.scrobble
     title: Published Rocksky scrobble lexicon
 ---
 
