@@ -37,6 +37,7 @@ class AtProtoScrobblable(userAccount: UserAccountSerializable) : Scrobblable(use
             val play = scrobbleData.toAtProtoPlay()
             val postId = play.postId(did)
             val targets = PanoAtProtoStore.targets(did)
+            check(targets.isNotEmpty()) { "The AT Protocol session has no granted posting targets" }
             val previouslyCompleted = PanoAtProtoStore.completedTargets(postId)
             val remainingTargets = targets - previouslyCompleted
 

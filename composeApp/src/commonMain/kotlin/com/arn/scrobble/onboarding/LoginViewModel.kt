@@ -20,6 +20,7 @@ import com.arn.scrobble.api.pleroma.PleromaOauthClientCreds
 import com.arn.scrobble.atproto.oauth.AtProtoOAuthClient
 import com.arn.scrobble.atproto.oauth.AuthorizationLaunch
 import com.arn.scrobble.atproto.oauth.OAuthCallback
+import com.arn.scrobble.atproto.posting.AtProtoTarget
 import com.arn.scrobble.utils.PlatformFile
 import com.arn.scrobble.utils.Stuff
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,11 @@ class LoginViewModel : ViewModel() {
             val result = try {
                 val session = atProtoOAuthClient.completeAuthorization(OAuthCallback.fromUrl(callbackUrl))
                 try {
+                    val grantedTargets = AtProtoTarget.grantedBy(session.token.scope)
+                    require(grantedTargets.isNotEmpty()) {
+                        "The authorization did not grant access to a supported scrobble collection"
+                    }
+                    PanoAtProtoStore.setTargets(session.did, grantedTargets)
                     Scrobblables.add(
                         UserAccountSerializable(
                             type = AccountType.ATPROTO,

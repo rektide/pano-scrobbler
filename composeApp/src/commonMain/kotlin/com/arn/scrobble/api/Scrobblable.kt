@@ -25,6 +25,7 @@ import com.arn.scrobble.utils.PlatformStuff
 import com.arn.scrobble.utils.Stuff
 import com.arn.scrobble.utils.Stuff.stateInWithCache
 import kotlinx.serialization.Serializable
+import kotlinx.coroutines.flow.first
 
 
 abstract class Scrobblable(val userAccount: UserAccountSerializable) {
@@ -207,7 +208,8 @@ object Scrobblables {
 
     suspend fun deleteAllByType(type: AccountType) {
         if (type == AccountType.ATPROTO) {
-            accounts.value.firstOrNull { it.type == type }?.authKey?.let { did ->
+            PlatformStuff.mainPrefs.data.first().scrobbleAccounts
+                .firstOrNull { it.type == type }?.authKey?.let { did ->
                 AtProtoSessionClient(Requesters.genericKtorClient, PanoAtProtoStore).revokeSession(did)
             }
         }

@@ -52,8 +52,13 @@ object PanoAtProtoStore : AuthorizationStateStore, AtProtoSessionStore {
         }
     }
 
-    suspend fun targets(did: String): Set<AtProtoTarget> =
-        PlatformStuff.mainPrefs.data.first().atProtoTargets[did] ?: AtProtoTarget.entries.toSet()
+    suspend fun targets(did: String): Set<AtProtoTarget> {
+        val prefs = PlatformStuff.mainPrefs.data.first()
+        val granted = prefs.atProtoSessions[did]?.token?.scope
+            ?.let { AtProtoTarget.grantedBy(it) }
+            .orEmpty()
+        return (prefs.atProtoTargets[did] ?: granted).intersect(granted)
+    }
 
     suspend fun setTargets(did: String, targets: Set<AtProtoTarget>) {
         require(targets.isNotEmpty()) { "At least one AT Protocol target must be enabled" }

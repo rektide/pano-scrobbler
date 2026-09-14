@@ -218,9 +218,15 @@ fun PrefsScreen(
     val proxy by Requesters.proxy.collectAsStateWithLifecycle()
     val userAccounts by
     mainPrefs.data.collectAsStateWithInitialValue { p -> p.scrobbleAccounts.associateBy { it.type } }
-    val atProtoAccountAndTargets by mainPrefs.data.collectAsStateWithInitialValue { prefs ->
+    val atProtoAccountConfig by mainPrefs.data.collectAsStateWithInitialValue { prefs ->
         val did = prefs.scrobbleAccounts.firstOrNull { it.type == AccountType.ATPROTO }?.authKey
-        did to (did?.let { prefs.atProtoTargets[it] } ?: AtProtoTarget.entries.toSet())
+        val grantedTargets = did?.let { prefs.atProtoSessions[it] }?.token?.scope
+            ?.let { AtProtoTarget.grantedBy(it) }
+            .orEmpty()
+        val selectedTargets = did?.let { prefs.atProtoTargets[it] }
+            ?.intersect(grantedTargets)
+            ?: grantedTargets
+        Triple(did, selectedTargets, grantedTargets)
     }
     val updateProgress by remember {
         UpdaterWork.getProgress().filter { it.state == CommonWorkState.RUNNING }
@@ -1001,9 +1007,10 @@ fun PrefsScreen(
                     )
                 }
 
-                if (accountType == AccountType.ATPROTO && atProtoAccountAndTargets.first != null) {
-                    val did = atProtoAccountAndTargets.first!!
-                    val selectedTargets = atProtoAccountAndTargets.second
+                if (accountType == AccountType.ATPROTO && atProtoAccountConfig.first != null) {
+                    val did = requireNotNull(atProtoAccountConfig.first)
+                    val selectedTargets = atProtoAccountConfig.second
+                    val grantedTargets = atProtoAccountConfig.third
                     AtProtoTarget.entries.forEach { target ->
                         val titleResource = when (target) {
                             AtProtoTarget.TEAL -> Res.string.teal
@@ -1014,9 +1021,12 @@ fun PrefsScreen(
                             SwitchPref(
                                 text = title,
                                 value = selected,
-                                enabled = !selected || selectedTargets.size > 1,
+                                enabled = target in grantedTargets && (!selected || selectedTargets.size > 1),
                                 copyToSave = { enabled ->
-                                    val currentTargets = atProtoTargets[did] ?: AtProtoTarget.entries.toSet()
+                                    val sessionScope = atProtoSessions[did]?.token?.scope.orEmpty()
+                                    val currentlyGranted = AtProtoTarget.grantedBy(sessionScope)
+                                    val currentTargets = (atProtoTargets[did] ?: currentlyGranted)
+                                        .intersect(currentlyGranted)
                                     val updatedTargets = if (enabled) {
                                         currentTargets + target
                                     } else {
