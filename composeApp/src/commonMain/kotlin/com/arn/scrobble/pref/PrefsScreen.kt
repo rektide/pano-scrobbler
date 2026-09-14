@@ -32,6 +32,7 @@ import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.api.AccountType
 import com.arn.scrobble.api.Requesters
 import com.arn.scrobble.billing.LocalLicenseValidState
+import com.arn.scrobble.atproto.posting.AtProtoTarget
 import com.arn.scrobble.crashreporter.CrashReporterConfig
 import com.arn.scrobble.db.PanoDb
 import com.arn.scrobble.icons.Api
@@ -151,6 +152,8 @@ import pano_scrobbler.composeapp.generated.resources.search
 import pano_scrobbler.composeapp.generated.resources.simple_edits
 import pano_scrobbler.composeapp.generated.resources.spotify
 import pano_scrobbler.composeapp.generated.resources.system
+import pano_scrobbler.composeapp.generated.resources.teal
+import pano_scrobbler.composeapp.generated.resources.rocksky
 import pano_scrobbler.composeapp.generated.resources.when_not_using
 import pano_scrobbler.composeapp.generated.resources.wiki_lang_selector
 import java.util.Calendar
@@ -215,6 +218,10 @@ fun PrefsScreen(
     val proxy by Requesters.proxy.collectAsStateWithLifecycle()
     val userAccounts by
     mainPrefs.data.collectAsStateWithInitialValue { p -> p.scrobbleAccounts.associateBy { it.type } }
+    val atProtoAccountAndTargets by mainPrefs.data.collectAsStateWithInitialValue { prefs ->
+        val did = prefs.scrobbleAccounts.firstOrNull { it.type == AccountType.ATPROTO }?.authKey
+        did to (did?.let { prefs.atProtoTargets[it] } ?: AtProtoTarget.entries.toSet())
+    }
     val updateProgress by remember {
         UpdaterWork.getProgress().filter { it.state == CommonWorkState.RUNNING }
     }.collectAsStateWithLifecycle(null)
@@ -992,6 +999,34 @@ fun PrefsScreen(
                         userAccount = userAccounts[accountType],
                         onNavigate = onNavigate
                     )
+                }
+
+                if (accountType == AccountType.ATPROTO && atProtoAccountAndTargets.first != null) {
+                    val did = atProtoAccountAndTargets.first!!
+                    val selectedTargets = atProtoAccountAndTargets.second
+                    AtProtoTarget.entries.forEach { target ->
+                        val titleResource = when (target) {
+                            AtProtoTarget.TEAL -> Res.string.teal
+                            AtProtoTarget.ROCKSKY -> Res.string.rocksky
+                        }
+                        filteredItem("atproto_${target.name}", titleResource) { title ->
+                            val selected = target in selectedTargets
+                            SwitchPref(
+                                text = title,
+                                value = selected,
+                                enabled = !selected || selectedTargets.size > 1,
+                                copyToSave = { enabled ->
+                                    val currentTargets = atProtoTargets[did] ?: AtProtoTarget.entries.toSet()
+                                    val updatedTargets = if (enabled) {
+                                        currentTargets + target
+                                    } else {
+                                        currentTargets - target
+                                    }
+                                    copy(atProtoTargets = atProtoTargets + (did to updatedTargets))
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
