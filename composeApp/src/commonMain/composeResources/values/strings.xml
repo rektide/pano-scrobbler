@@ -88,6 +88,9 @@
     <string name="unavailable_offline">Not available when offline</string>
     <string name="tv_url_notice">Open this URL in a browser on another device</string>
     <string name="scrobble_services" comment="Services like lastfm, librefm, listenbrainz etc">Services</string>
+    <string name="atproto_handle">Handle or DID</string>
+    <string name="atproto_callback_url">Full callback URL</string>
+    <string name="atproto_waiting_callback">Finish authorization in your browser. On desktop, copy the full callback URL and paste it here.</string>
     <string name="recents_share" formatted="true" comment="%1= artist — track, %2= relative time (with preposition e.g. on Sep 9)">I was listening to\n%1$s %2$s</string>
     <string name="recents_share_username" formatted="true" comment="%1= artist — track, %2= relative time (with preposition e.g. on Sep 9), %3= username">%3$s was listening to\n%1$s %2$s</string>
     <string name="share_sig">(via Pano Scrobbler)</string>

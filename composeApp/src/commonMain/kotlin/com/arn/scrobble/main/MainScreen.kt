@@ -522,7 +522,7 @@ fun PanoAppContent(
     NavFromOutsideEffect(
         onNavigate = {
             // disable deeplinks if logged out
-            if (currentUser != null)
+            if (currentUser != null || it is PanoRoute.LoginAtProto && it.callbackUrl != null)
                 navigate(it)
         },
         isAndroidDialogActivity = isDialogActivity

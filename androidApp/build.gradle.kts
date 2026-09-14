@@ -3,6 +3,7 @@ import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import com.google.gms.googleservices.GoogleServicesPlugin
 import com.mikepenz.aboutlibraries.plugin.DuplicateMode
 import com.mikepenz.aboutlibraries.plugin.StrictMode
+import java.net.URI
 
 plugins {
     alias(libs.plugins.android.application)
@@ -17,6 +18,10 @@ val VER_CODE = rootProject.extra["VER_CODE"] as Int
 val VER_NAME = rootProject.extra["VER_NAME"] as String
 val APP_NAME = rootProject.extra["APP_NAME"] as String
 val APP_NAME_NO_SPACES = rootProject.extra["APP_NAME_NO_SPACES"] as String
+val localProperties = gradleLocalProperties(rootDir, project.providers)
+val atprotoOAuthRedirectUri = providers.environmentVariable("ATPROTO_OAUTH_REDIRECT_URI").orNull
+    ?: localProperties.getProperty("atproto.oauthRedirectUri")
+    ?: "io.github.rektide:/pano-scrobbler/oauth/callback"
 
 kotlin {
     jvmToolchain(25)
@@ -39,6 +44,14 @@ android {
         versionCode = VER_CODE
         versionName = VER_NAME
         base.archivesName = APP_NAME_NO_SPACES
+        URI(atprotoOAuthRedirectUri).let { redirectUri ->
+            manifestPlaceholders["atprotoOAuthScheme"] = requireNotNull(redirectUri.scheme) {
+                "AT Protocol OAuth redirect URI must have a scheme"
+            }
+            manifestPlaceholders["atprotoOAuthPath"] = requireNotNull(redirectUri.path) {
+                "AT Protocol OAuth redirect URI must have a path"
+            }
+        }
     }
 
     buildFeatures {
@@ -109,8 +122,6 @@ android {
     }
 
     signingConfigs {
-        val localProperties = gradleLocalProperties(rootDir, project.providers)
-
         val releaseKeystorePath = localProperties.getProperty("release.keystorePath")
         val releaseStorePassword = localProperties.getProperty("release.storePassword")
         val releaseAlias = localProperties.getProperty("release.alias")

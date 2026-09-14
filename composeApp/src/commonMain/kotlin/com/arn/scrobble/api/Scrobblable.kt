@@ -1,6 +1,8 @@
 package com.arn.scrobble.api
 
 import co.touchlab.kermit.Logger
+import com.arn.scrobble.api.atproto.AtProtoScrobblable
+import com.arn.scrobble.api.atproto.PanoAtProtoStore
 import com.arn.scrobble.api.cache.CacheStrategy
 import com.arn.scrobble.api.file.FileScrobblable
 import com.arn.scrobble.api.lastfm.Album
@@ -16,6 +18,7 @@ import com.arn.scrobble.api.lastfm.Track
 import com.arn.scrobble.api.lastfm.User
 import com.arn.scrobble.api.listenbrainz.ListenBrainz
 import com.arn.scrobble.api.pleroma.Pleroma
+import com.arn.scrobble.atproto.oauth.AtProtoSessionClient
 import com.arn.scrobble.charts.ListeningActivity
 import com.arn.scrobble.charts.TimePeriod
 import com.arn.scrobble.utils.PlatformStuff
@@ -164,7 +167,8 @@ enum class AccountType(val id: Int) {
 
     //    MALOJA(5),
     PLEROMA(6),
-    FILE(7);
+    FILE(7),
+    ATPROTO(10);
 
     val isCustom get() = this != LASTFM && this != LISTENBRAINZ && this != LIBREFM && this != FILE
 }
@@ -202,6 +206,12 @@ object Scrobblables {
         get() = all.firstOrNull { it.userAccount.type == currentAccountType.value }
 
     suspend fun deleteAllByType(type: AccountType) {
+        if (type == AccountType.ATPROTO) {
+            accounts.value.firstOrNull { it.type == type }?.authKey?.let { did ->
+                AtProtoSessionClient(Requesters.genericKtorClient, PanoAtProtoStore).revokeSession(did)
+            }
+        }
+
         PlatformStuff.mainPrefs.updateData {
             val remainingAccounts = it.scrobbleAccounts.filterNot { it.type == type }
             var currentAccountType = it.currentAccountType
@@ -255,6 +265,8 @@ object Scrobblables {
             AccountType.PLEROMA -> Pleroma(userAccount)
 
             AccountType.FILE -> FileScrobblable(userAccount)
+
+            AccountType.ATPROTO -> AtProtoScrobblable(userAccount)
         }
     }
 }

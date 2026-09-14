@@ -109,6 +109,17 @@
                 <data android:host="screen" />
             </intent-filter>
 
+            <intent-filter android:label="AT Protocol OAuth">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data
+                    android:path="${atprotoOAuthPath}"
+                    android:scheme="${atprotoOAuthScheme}" />
+            </intent-filter>
+
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />

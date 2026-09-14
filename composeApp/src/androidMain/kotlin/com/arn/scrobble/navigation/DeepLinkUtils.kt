@@ -3,6 +3,7 @@ package com.arn.scrobble.navigation
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
+import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.api.Scrobblables
 import com.arn.scrobble.api.lastfm.Album
 import com.arn.scrobble.api.lastfm.Artist
@@ -144,6 +145,16 @@ object DeepLinkUtils {
         }
 
         val uri = intent.data ?: return null
+
+        val atProtoRedirect = Uri.parse(BuildKonfig.ATPROTO_OAUTH_REDIRECT_URI)
+        if (
+            intent.action == Intent.ACTION_VIEW &&
+            uri.scheme == atProtoRedirect.scheme &&
+            uri.authority == atProtoRedirect.authority &&
+            uri.path == atProtoRedirect.path
+        ) {
+            return PanoRoute.LoginAtProto(uri.toString())
+        }
 
         if (uri.scheme == SCHEME && uri.authority == AUTHORITY) {
             val routeStr = uri.getQueryParameter(ROUTE) ?: return null

@@ -148,6 +148,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import pano_scrobbler.composeapp.generated.resources.Res
 import pano_scrobbler.composeapp.generated.resources.add_exception
+import pano_scrobbler.composeapp.generated.resources.atproto
 import pano_scrobbler.composeapp.generated.resources.disable
 import pano_scrobbler.composeapp.generated.resources.enable
 import pano_scrobbler.composeapp.generated.resources.fix_it_action
@@ -1184,6 +1185,7 @@ fun accountTypeStringRes(accountType: AccountType): Pair<StringResource, StringR
 
         AccountType.PLEROMA -> Res.string.pleroma
         AccountType.FILE -> Res.string.scrobble_to_file
+        AccountType.ATPROTO -> Res.string.atproto
     }
 
     val formatRes = when (accountType) {

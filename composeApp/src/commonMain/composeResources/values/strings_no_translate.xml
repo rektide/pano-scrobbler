@@ -7,6 +7,7 @@
     <string name="listenbrainz" translatable="false">ListenBrainz</string>
     <string name="maloja" translatable="false">Maloja</string>
     <string name="pleroma" translatable="false">Pleroma</string>
+    <string name="atproto" translatable="false">AT Protocol</string>
     <string name="loading" translatable="false">…</string>
     <string name="export_file_name" translatable="false" formatted="true">pano_scrobbler_export_%1$s</string>
     <string name="edit_case_sensitive_aa" translatable="false">Aa</string>

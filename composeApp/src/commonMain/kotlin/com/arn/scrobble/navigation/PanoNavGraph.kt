@@ -29,6 +29,7 @@ import com.arn.scrobble.info.InfoPagerScreen
 import com.arn.scrobble.info.SimilarTracksScreen
 import com.arn.scrobble.main.HomePagerScreen
 import com.arn.scrobble.main.MainViewModel
+import com.arn.scrobble.onboarding.AtProtoLoginScreen
 import com.arn.scrobble.onboarding.FileLoginScreen
 import com.arn.scrobble.onboarding.GnufmLoginScreen
 import com.arn.scrobble.onboarding.ListenBrainzLoginScreen
@@ -63,6 +64,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import pano_scrobbler.composeapp.generated.resources.Res
 import pano_scrobbler.composeapp.generated.resources.artist_splitting_exceptions
+import pano_scrobbler.composeapp.generated.resources.atproto
 import pano_scrobbler.composeapp.generated.resources.automation_cli
 import pano_scrobbler.composeapp.generated.resources.automation_cp
 import pano_scrobbler.composeapp.generated.resources.choose_an_app
@@ -450,6 +452,16 @@ object PanoNavGraph {
                     navigate(it)
                 },
                 modifier = Modifier.navScrollableColumn()
+            )
+        }
+
+        entry<PanoRoute.LoginAtProto> { route ->
+            onSetTitleRes(route, Res.string.atproto)
+
+            AtProtoLoginScreen(
+                callbackUrl = route.callbackUrl,
+                onDone = goBack,
+                modifier = Modifier.navScrollableColumn(),
             )
         }
 

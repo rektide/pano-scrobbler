@@ -135,7 +135,7 @@ fun ScrobblesScreen(
     var timeJumpMenuShown by rememberSaveable { mutableStateOf(false) }
     val pendingScrobblesHeader =
         stringResource(Res.string.pending_scrobbles) + ": " + pendingScrobblesCount
-    val canLove = accountType != AccountType.PLEROMA
+    val canLove = accountType !in arrayOf(AccountType.PLEROMA, AccountType.ATPROTO)
 
     val scope = rememberCoroutineScope()
 
@@ -143,7 +143,7 @@ fun ScrobblesScreen(
         mutableStateOf(
             !PlatformStuff.isTv &&
                     selectedType != PanoTab.Scrobbles.ScrobblesSubTabType.LOVED &&
-                    accountType !in arrayOf(AccountType.FILE, AccountType.PLEROMA)
+                    accountType !in arrayOf(AccountType.FILE, AccountType.PLEROMA, AccountType.ATPROTO)
         )
     }
 

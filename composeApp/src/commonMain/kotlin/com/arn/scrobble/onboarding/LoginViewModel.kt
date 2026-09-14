@@ -8,6 +8,8 @@ import com.arn.scrobble.api.Scrobblables
 import com.arn.scrobble.api.UserAccountSerializable
 import com.arn.scrobble.api.UserAccountTemp
 import com.arn.scrobble.api.UserCached
+import com.arn.scrobble.api.atproto.PanoAtProtoConfig
+import com.arn.scrobble.api.atproto.PanoAtProtoStore
 import com.arn.scrobble.api.file.FileScrobblable
 import com.arn.scrobble.api.lastfm.ApiException
 import com.arn.scrobble.api.lastfm.GnuFm
@@ -15,6 +17,9 @@ import com.arn.scrobble.api.lastfm.LastFm
 import com.arn.scrobble.api.listenbrainz.ListenBrainz
 import com.arn.scrobble.api.pleroma.Pleroma
 import com.arn.scrobble.api.pleroma.PleromaOauthClientCreds
+import com.arn.scrobble.atproto.oauth.AtProtoOAuthClient
+import com.arn.scrobble.atproto.oauth.AuthorizationLaunch
+import com.arn.scrobble.atproto.oauth.OAuthCallback
 import com.arn.scrobble.utils.PlatformFile
 import com.arn.scrobble.utils.Stuff
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +35,7 @@ import pano_scrobbler.composeapp.generated.resources.failed_encode_url
 import pano_scrobbler.composeapp.generated.resources.required_fields_empty
 import java.io.IOException
 import java.net.UnknownHostException
+import kotlinx.coroutines.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
 class LoginViewModel : ViewModel() {
@@ -40,6 +46,62 @@ class LoginViewModel : ViewModel() {
 
     private val _tokenResult = MutableStateFlow<Result<String>?>(null)
     val tokenResult = _tokenResult.asStateFlow()
+    private val _atProtoStartResult = MutableStateFlow<Result<AuthorizationLaunch>?>(null)
+    val atProtoStartResult = _atProtoStartResult.asStateFlow()
+
+    private val atProtoOAuthClient by lazy {
+        AtProtoOAuthClient(
+            httpClient = Requesters.genericKtorClient,
+            config = PanoAtProtoConfig.oauth,
+            authorizationStates = PanoAtProtoStore,
+            sessions = PanoAtProtoStore,
+        )
+    }
+
+    fun atProtoStart(handle: String) {
+        viewModelScope.launch {
+            _atProtoStartResult.value = try {
+                Result.success(atProtoOAuthClient.beginAuthorization(handle))
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                Result.failure(cause)
+            }
+        }
+    }
+
+    fun atProtoComplete(callbackUrl: String) {
+        viewModelScope.launch {
+            val result = try {
+                val session = atProtoOAuthClient.completeAuthorization(OAuthCallback.fromUrl(callbackUrl))
+                try {
+                    Scrobblables.add(
+                        UserAccountSerializable(
+                            type = AccountType.ATPROTO,
+                            user = UserCached(
+                                name = session.handle ?: session.did,
+                                url = "https://bsky.app/profile/${session.did}",
+                                realname = session.handle ?: session.did,
+                                country = "",
+                                registeredTime = -1,
+                            ),
+                            authKey = session.did,
+                            apiRoot = session.pds,
+                        ),
+                    )
+                } catch (cause: Exception) {
+                    atProtoOAuthClient.revokeSession(session.did)
+                    throw cause
+                }
+                Result.success(Unit)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                Result.failure(cause)
+            }
+            _result.emit(result)
+        }
+    }
 
     fun gnufmLogin(
         apiRoot: String,
