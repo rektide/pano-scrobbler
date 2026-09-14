@@ -1,8 +1,11 @@
 package com.arn.scrobble.api
 
 import co.touchlab.kermit.Logger
+import com.arn.scrobble.api.atproto.AtProtoFieldBackend
+import com.arn.scrobble.api.atproto.AtProtoFieldPath
 import com.arn.scrobble.api.atproto.AtProtoScrobblable
 import com.arn.scrobble.api.atproto.PanoAtProtoStore
+import com.arn.scrobble.api.atproto.PanoUpstreamAtProtoAccountCoordinator
 import com.arn.scrobble.api.cache.CacheStrategy
 import com.arn.scrobble.api.file.FileScrobblable
 import com.arn.scrobble.api.lastfm.Album
@@ -210,7 +213,18 @@ object Scrobblables {
         if (type == AccountType.ATPROTO) {
             PlatformStuff.mainPrefs.data.first().scrobbleAccounts
                 .firstOrNull { it.type == type }?.authKey?.let { did ->
-                AtProtoSessionClient(Requesters.genericKtorClient, PanoAtProtoStore).revokeSession(did)
+                when (AtProtoFieldPath.selected) {
+                    AtProtoFieldBackend.LOCAL ->
+                        AtProtoSessionClient(Requesters.genericKtorClient, PanoAtProtoStore).revokeSession(did)
+                    AtProtoFieldBackend.UPSTREAM -> {
+                        AtProtoFieldPath.ensureSelectedPathCompatible(
+                            selected = AtProtoFieldBackend.UPSTREAM,
+                            sessions = PanoAtProtoStore.sessionPresence(),
+                        )
+                        PanoUpstreamAtProtoAccountCoordinator.logout()
+                        PanoAtProtoStore.clearTargets(did)
+                    }
+                }
             }
         }
 

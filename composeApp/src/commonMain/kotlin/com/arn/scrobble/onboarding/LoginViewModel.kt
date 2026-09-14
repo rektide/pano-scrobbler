@@ -10,6 +10,9 @@ import com.arn.scrobble.api.UserAccountTemp
 import com.arn.scrobble.api.UserCached
 import com.arn.scrobble.api.atproto.PanoAtProtoConfig
 import com.arn.scrobble.api.atproto.PanoAtProtoStore
+import com.arn.scrobble.api.atproto.PanoUpstreamAtProtoAccountCoordinator
+import com.arn.scrobble.api.atproto.AtProtoFieldBackend
+import com.arn.scrobble.api.atproto.AtProtoFieldPath
 import com.arn.scrobble.api.file.FileScrobblable
 import com.arn.scrobble.api.lastfm.ApiException
 import com.arn.scrobble.api.lastfm.GnuFm
@@ -62,7 +65,16 @@ class LoginViewModel : ViewModel() {
     fun atProtoStart(handle: String) {
         viewModelScope.launch {
             _atProtoStartResult.value = try {
-                Result.success(atProtoOAuthClient.beginAuthorization(handle))
+                val selected = AtProtoFieldPath.selected
+                AtProtoFieldPath.ensureCanBeginLogin(selected, PanoAtProtoStore.sessionPresence())
+                val launch = when (selected) {
+                    AtProtoFieldBackend.LOCAL -> atProtoOAuthClient.beginAuthorization(handle)
+                    AtProtoFieldBackend.UPSTREAM -> AuthorizationLaunch(
+                        authorizationUrl = PanoUpstreamAtProtoAccountCoordinator.beginLogin(handle),
+                        expiresAt = System.currentTimeMillis() + io.github.kikin81.atproto.oauth.AtOAuth.PENDING_AUTH_TTL_MILLIS,
+                    )
+                }
+                Result.success(launch)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {
@@ -74,9 +86,31 @@ class LoginViewModel : ViewModel() {
     fun atProtoComplete(callbackUrl: String) {
         viewModelScope.launch {
             val result = try {
-                val session = atProtoOAuthClient.completeAuthorization(OAuthCallback.fromUrl(callbackUrl))
+                val selected = AtProtoFieldPath.selected
+                val session = when (selected) {
+                    AtProtoFieldBackend.LOCAL -> {
+                        val local = atProtoOAuthClient.completeAuthorization(OAuthCallback.fromUrl(callbackUrl))
+                        CompletedAtProtoLogin(
+                            did = local.did,
+                            handle = local.handle,
+                            pds = local.pds,
+                            scope = local.token.scope,
+                        )
+                    }
+                    AtProtoFieldBackend.UPSTREAM -> {
+                        val upstream = PanoUpstreamAtProtoAccountCoordinator.completeLogin(callbackUrl)
+                        CompletedAtProtoLogin(
+                            did = requireNotNull(upstream.did) { "Fork-backed login returned no account DID" },
+                            handle = upstream.handle,
+                            pds = requireNotNull(upstream.pdsUrl) { "Fork-backed login returned no PDS URL" },
+                            scope = requireNotNull(upstream.scope) {
+                                "Fork-backed login did not record granted scope; complete a fresh login"
+                            },
+                        )
+                    }
+                }
                 try {
-                    val grantedTargets = AtProtoTarget.grantedBy(session.token.scope)
+                    val grantedTargets = AtProtoTarget.grantedBy(session.scope)
                     require(grantedTargets.isNotEmpty()) {
                         "The authorization did not grant access to a supported scrobble collection"
                     }
@@ -96,7 +130,10 @@ class LoginViewModel : ViewModel() {
                         ),
                     )
                 } catch (cause: Exception) {
-                    atProtoOAuthClient.revokeSession(session.did)
+                    when (selected) {
+                        AtProtoFieldBackend.LOCAL -> atProtoOAuthClient.revokeSession(session.did)
+                        AtProtoFieldBackend.UPSTREAM -> PanoUpstreamAtProtoAccountCoordinator.logout()
+                    }
                     throw cause
                 }
                 Result.success(Unit)
@@ -316,3 +353,10 @@ class LoginViewModel : ViewModel() {
         }
     }
 }
+
+private data class CompletedAtProtoLogin(
+    val did: String,
+    val handle: String?,
+    val pds: String,
+    val scope: String,
+)

@@ -48,14 +48,21 @@ class AtProtoScrobblable(userAccount: UserAccountSerializable) : Scrobblable(use
                 return Result.success(ScrobbleResult(ignored = false))
             }
 
-            val poster = posters.computeIfAbsent(remainingTargets.toSet()) { posterTargets ->
-                AtProtoPoster(
-                    httpClient = Requesters.genericKtorClient,
-                    sessionClient = sessionClient,
-                    config = AtProtoPostingConfig(
-                        targets = posterTargets,
-                        submissionClientAgent = "${BuildKonfig.APP_ID}/${BuildKonfig.VER_NAME}",
-                    ),
+            val posterConfig = AtProtoPostingConfig(
+                targets = remainingTargets.toSet(),
+                submissionClientAgent = "${BuildKonfig.APP_ID}/${BuildKonfig.VER_NAME}",
+            )
+            val poster = when (AtProtoFieldPath.selected) {
+                AtProtoFieldBackend.LOCAL -> posters.computeIfAbsent(remainingTargets.toSet()) {
+                    AtProtoPoster(
+                        httpClient = Requesters.genericKtorClient,
+                        sessionClient = sessionClient,
+                        config = posterConfig,
+                    )
+                }
+                AtProtoFieldBackend.UPSTREAM -> AtProtoPoster(
+                    xrpcClient = PanoUpstreamAtProtoAccountCoordinator.getOrCreateClient(),
+                    config = posterConfig,
                 )
             }
             val result = poster.post(did, play)

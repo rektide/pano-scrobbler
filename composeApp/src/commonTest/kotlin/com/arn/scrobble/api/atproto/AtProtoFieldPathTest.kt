@@ -50,4 +50,30 @@ class AtProtoFieldPathTest {
         }
         assertContains(failure.message.orEmpty(), "fresh upstream login")
     }
+
+    @Test
+    fun `granted scope comes only from the selected matching session`() {
+        val sessions = AtProtoSessionPresence(
+            localDids = setOf("did:plc:local"),
+            upstreamDid = "did:plc:upstream",
+        )
+
+        val local = AtProtoFieldPath.requireGrantedScope(
+            selected = AtProtoFieldBackend.LOCAL,
+            expectedDid = "did:plc:local",
+            sessions = sessions,
+            localScopes = mapOf("did:plc:local" to "atproto repo:local"),
+            upstreamScope = "atproto repo:upstream",
+        )
+        val upstream = AtProtoFieldPath.requireGrantedScope(
+            selected = AtProtoFieldBackend.UPSTREAM,
+            expectedDid = "did:plc:upstream",
+            sessions = sessions,
+            localScopes = mapOf("did:plc:local" to "atproto repo:local"),
+            upstreamScope = "atproto repo:upstream",
+        )
+
+        assertEquals("atproto repo:local", local)
+        assertEquals("atproto repo:upstream", upstream)
+    }
 }

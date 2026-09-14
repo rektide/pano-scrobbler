@@ -25,6 +25,11 @@ internal object AtProtoFieldPath {
     fun ensureCanBeginLogin(
         selected: AtProtoFieldBackend,
         sessions: AtProtoSessionPresence,
+    ) = ensureSelectedPathCompatible(selected, sessions)
+
+    fun ensureSelectedPathCompatible(
+        selected: AtProtoFieldBackend,
+        sessions: AtProtoSessionPresence,
     ) {
         val selectedExists = when (selected) {
             AtProtoFieldBackend.LOCAL -> sessions.localDids.isNotEmpty()
@@ -55,6 +60,23 @@ internal object AtProtoFieldPath {
                     "No fork-backed AT Protocol session for $expectedDid; complete a fresh upstream login"
             }
         }
+    }
+
+    fun requireGrantedScope(
+        selected: AtProtoFieldBackend,
+        expectedDid: String,
+        sessions: AtProtoSessionPresence,
+        localScopes: Map<String, String>,
+        upstreamScope: String?,
+    ): String {
+        requireActiveSession(selected, expectedDid, sessions)
+        return when (selected) {
+            AtProtoFieldBackend.LOCAL -> localScopes[expectedDid]
+            AtProtoFieldBackend.UPSTREAM -> upstreamScope
+        } ?: error(
+            "The ${selected.name.lowercase()} AT Protocol session has no recorded granted scope; " +
+                "complete a fresh ${selected.name.lowercase()} login",
+        )
     }
 
     private fun mismatch(selected: AtProtoFieldBackend): AtProtoSessionPathMismatchException {

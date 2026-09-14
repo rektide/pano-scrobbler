@@ -54,16 +54,36 @@ object PanoAtProtoStore : AuthorizationStateStore, AtProtoSessionStore {
 
     suspend fun targets(did: String): Set<AtProtoTarget> {
         val prefs = PlatformStuff.mainPrefs.data.first()
-        val granted = prefs.atProtoSessions[did]?.token?.scope
-            ?.let { AtProtoTarget.grantedBy(it) }
-            .orEmpty()
+        val selected = AtProtoFieldPath.selected
+        val sessions = prefs.atProtoSessionPresence()
+        AtProtoFieldPath.ensureSelectedPathCompatible(selected, sessions)
+        val grantedScope = when (selected) {
+            AtProtoFieldBackend.LOCAL -> prefs.atProtoSessions[did]?.token?.scope ?: return emptySet()
+            AtProtoFieldBackend.UPSTREAM -> AtProtoFieldPath.requireGrantedScope(
+                selected = selected,
+                expectedDid = did,
+                sessions = sessions,
+                localScopes = emptyMap(),
+                upstreamScope = prefs.atProtoUpstreamSession?.scope,
+            )
+        }
+        val granted = AtProtoTarget.grantedBy(grantedScope)
         return (prefs.atProtoTargets[did] ?: granted).intersect(granted)
     }
+
+    internal suspend fun sessionPresence(): AtProtoSessionPresence =
+        PlatformStuff.mainPrefs.data.first().atProtoSessionPresence()
 
     suspend fun setTargets(did: String, targets: Set<AtProtoTarget>) {
         require(targets.isNotEmpty()) { "At least one AT Protocol target must be enabled" }
         PlatformStuff.mainPrefs.updateData { prefs ->
             prefs.copy(atProtoTargets = prefs.atProtoTargets + (did to targets.toSet()))
+        }
+    }
+
+    suspend fun clearTargets(did: String) {
+        PlatformStuff.mainPrefs.updateData { prefs ->
+            prefs.copy(atProtoTargets = prefs.atProtoTargets - did)
         }
     }
 
@@ -85,3 +105,9 @@ object PanoAtProtoStore : AuthorizationStateStore, AtProtoSessionStore {
         }
     }
 }
+
+private fun com.arn.scrobble.pref.MainPrefs.atProtoSessionPresence(): AtProtoSessionPresence =
+    AtProtoSessionPresence(
+        localDids = atProtoSessions.keys,
+        upstreamDid = atProtoUpstreamSession?.did,
+    )
