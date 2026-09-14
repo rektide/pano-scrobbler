@@ -233,6 +233,18 @@ buildkonfig {
                 ?: "io.github.rektide:/pano-scrobbler/oauth/callback",
             const = true,
         )
+        buildConfigField(
+            BOOLEAN,
+            "ATPROTO_USE_UPSTREAM",
+            providers.gradleProperty("atproto.useUpstream")
+                .orElse(providers.environmentVariable("ATPROTO_USE_UPSTREAM"))
+                .orElse("false")
+                .map { value ->
+                    value.toBooleanStrictOrNull()
+                        ?: error("atproto.useUpstream / ATPROTO_USE_UPSTREAM must be true or false")
+                }.get().toString(),
+            const = true,
+        )
 
     }
 
