@@ -3,6 +3,8 @@ package com.arn.scrobble.atproto.posting
 import com.arn.scrobble.atproto.oauth.AtProtoSessionClient
 import com.arn.scrobble.atproto.repo.AtProtoRepository
 import com.arn.scrobble.atproto.repo.CreatedRecord
+import com.arn.scrobble.atproto.repo.UpstreamAtProtoRepository
+import io.github.kikin81.atproto.runtime.XrpcClient
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
@@ -65,6 +67,20 @@ class AtProtoPoster internal constructor(
     ) : this(
         config = config,
         createRecord = AtProtoRepository(httpClient, sessionClient)::createRecord,
+        json = Json { explicitNulls = false },
+    )
+
+    /**
+     * Staged fork-backed construction path. The caller supplies the one
+     * account-scoped authenticated client; this poster never creates an auth
+     * provider or generated model.
+     */
+    constructor(
+        xrpcClient: XrpcClient,
+        config: AtProtoPostingConfig = AtProtoPostingConfig(),
+    ) : this(
+        config = config,
+        createRecord = UpstreamAtProtoRepository(xrpcClient)::createRecord,
         json = Json { explicitNulls = false },
     )
 
