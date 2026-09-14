@@ -14,7 +14,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
-import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TOKEN_REFRESH_MARGIN_MILLIS = 60 * 1_000L
@@ -23,7 +22,7 @@ class AtProtoSessionClient internal constructor(
     private val httpClient: HttpClient,
     private val sessions: AtProtoSessionStore,
     private val discovery: OAuthDiscovery,
-    private val clock: Clock,
+    private val clock: EpochClock,
     private val json: Json,
 ) {
     constructor(
@@ -33,7 +32,7 @@ class AtProtoSessionClient internal constructor(
         httpClient = httpClient,
         sessions = sessions,
         discovery = OAuthDiscovery(httpClient),
-        clock = Clock.systemUTC(),
+        clock = EpochClock.System,
         json = Json { ignoreUnknownKeys = true },
     )
 
@@ -134,5 +133,5 @@ class AtProtoSessionClient internal constructor(
     }
 }
 
-private fun AtProtoToken.isUsable(clock: Clock): Boolean =
+private fun AtProtoToken.isUsable(clock: EpochClock): Boolean =
     expiresAt == null || clock.millis() + TOKEN_REFRESH_MARGIN_MILLIS <= expiresAt

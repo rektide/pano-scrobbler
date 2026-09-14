@@ -23,7 +23,6 @@ import com.arn.scrobble.charts.ListeningActivity
 import com.arn.scrobble.charts.TimePeriod
 import kotlinx.coroutines.CancellationException
 import java.security.MessageDigest
-import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 
 class AtProtoScrobblable(userAccount: UserAccountSerializable) : Scrobblable(userAccount) {
@@ -167,5 +166,12 @@ private fun Play.postId(did: String): String {
         sourceTag.orEmpty(),
     ).joinToString("\u0000")
     val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    val hex = "0123456789abcdef"
+    return buildString(digest.size * 2) {
+        digest.forEach { byte ->
+            val value = byte.toInt() and 0xff
+            append(hex[value ushr 4])
+            append(hex[value and 0x0f])
+        }
+    }
 }

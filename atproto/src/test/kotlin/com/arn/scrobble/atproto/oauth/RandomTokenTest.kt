@@ -8,10 +8,11 @@ import kotlin.test.assertTrue
 class RandomTokenTest {
     @Test
     fun `uses the URL-safe alphabet at the requested length`() {
-        val token = randomUrlToken(64, Random(42))
+        val random = Random(42)
+        val token = randomUrlToken(64, random::nextInt)
 
         assertEquals(64, token.length)
         assertTrue(token.all { it.isLetterOrDigit() || it == '-' || it == '_' })
-        assertEquals(token, randomUrlToken(64, Random(42)))
+        assertEquals(token, randomUrlToken(64, Random(42)::nextInt))
     }
 }

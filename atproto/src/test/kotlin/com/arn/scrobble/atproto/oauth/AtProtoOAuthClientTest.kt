@@ -15,9 +15,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -143,7 +140,7 @@ private class OAuthFixture {
     )
     val states = MemoryAuthorizationStateStore()
     val sessions = MemoryAtProtoSessionStore()
-    val clock = MutableClock(Instant.ofEpochSecond(1_800_000_000))
+    val clock = MutableEpochClock(1_800_000_000_000)
     var parRequest: HttpRequestData? = null
     var authorizationCodeRequest: HttpRequestData? = null
     var revocationRequest: HttpRequestData? = null
@@ -281,15 +278,11 @@ private class MemoryAtProtoSessionStore : AtProtoSessionStore {
     }
 }
 
-private class MutableClock(private var now: Instant) : Clock() {
-    override fun getZone(): ZoneId = ZoneId.of("UTC")
-
-    override fun withZone(zone: ZoneId): Clock = this
-
-    override fun instant(): Instant = now
+private class MutableEpochClock(private var now: Long) : EpochClock {
+    override fun millis(): Long = now
 
     fun advanceSeconds(seconds: Long) {
-        now = now.plusSeconds(seconds)
+        now += seconds * 1_000
     }
 }
 

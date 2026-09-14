@@ -6,9 +6,6 @@ import com.arn.scrobble.atproto.encoding.decodeBase64Url
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -20,7 +17,7 @@ class DpopProofTest {
         val key = generateP256PrivateJwk()
         val factory = DpopProofFactory(
             key = key,
-            clock = Clock.fixed(Instant.ofEpochSecond(1_714_657_900), ZoneOffset.UTC),
+            clock = EpochClock { 1_714_657_900_000 },
             nextJti = { "fixed-jti" },
         )
 

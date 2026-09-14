@@ -9,12 +9,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
-import java.time.Clock
 import java.util.Locale
 
 internal class DpopProofFactory(
     private val key: P256PrivateJwk,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: EpochClock = EpochClock.System,
     private val nextJti: () -> String = { randomUrlToken(24) },
 ) {
     fun create(
@@ -32,7 +31,7 @@ internal class DpopProofFactory(
             jti = nextJti(),
             method = method.uppercase(Locale.ROOT),
             url = normalizeHtu(url),
-            issuedAt = clock.instant().epochSecond,
+            issuedAt = clock.millis() / 1_000,
             nonce = nonce,
             accessTokenHash = accessToken?.let(::hashAccessToken),
         )

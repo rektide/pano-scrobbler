@@ -2,7 +2,7 @@ package com.arn.scrobble.atproto.posting
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.time.Instant
+import kotlin.time.Instant
 
 @Serializable
 internal data class TealPlayRecord(
@@ -52,7 +52,7 @@ internal fun Play.toTealRecord(submissionClientAgent: String?): TealPlayRecord {
         originUri = originUri,
         musicServiceUri = musicServiceUri,
         submissionClientAgent = submissionClientAgent.cleanOptional(256),
-        playedTime = Instant.ofEpochMilli(playedAtMillis).toString(),
+        playedTime = Instant.fromEpochMilliseconds(playedAtMillis).toString(),
     )
 }
 
@@ -68,7 +68,7 @@ internal fun Play.toRockskyRecord(): RockskyScrobbleRecord {
         duration = durationMillis ?: 1,
         tags = sourceTag.cleanOptional(256)?.let(::listOf),
         trackNumber = trackNumber,
-        createdAt = Instant.ofEpochMilli(playedAtMillis).toString(),
+        createdAt = Instant.fromEpochMilliseconds(playedAtMillis).toString(),
     )
 }
 

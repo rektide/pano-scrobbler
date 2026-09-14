@@ -17,7 +17,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import java.time.Clock
 
 private const val AUTHORIZATION_LIFETIME_MILLIS = 10 * 60 * 1_000L
 
@@ -27,7 +26,7 @@ class AtProtoOAuthClient internal constructor(
     private val authorizationStates: AuthorizationStateStore,
     private val sessions: AtProtoSessionStore,
     private val discovery: OAuthDiscovery,
-    private val clock: Clock,
+    private val clock: EpochClock,
     private val nextState: () -> String,
     private val generateKey: () -> P256PrivateJwk,
     private val json: Json,
@@ -43,7 +42,7 @@ class AtProtoOAuthClient internal constructor(
         authorizationStates = authorizationStates,
         sessions = sessions,
         discovery = OAuthDiscovery(httpClient),
-        clock = Clock.systemUTC(),
+        clock = EpochClock.System,
         nextState = { randomUrlToken(24) },
         generateKey = ::generateP256PrivateJwk,
         json = Json { ignoreUnknownKeys = true },
@@ -242,7 +241,7 @@ internal data class OAuthErrorResponse(
 )
 
 internal fun TokenResponse.toToken(
-    clock: Clock,
+    clock: EpochClock,
     previousRefreshToken: String? = null,
 ): AtProtoToken {
     require(accessToken.isNotBlank()) { "Token response is missing an access token" }

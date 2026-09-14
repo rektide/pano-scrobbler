@@ -60,7 +60,7 @@ internal class IdentityResolver(
     private suspend fun resolveHandle(handle: String): String {
         val url = origin(handleResolver) +
             "/xrpc/com.atproto.identity.resolveHandle?handle=" +
-            URLEncoder.encode(handle, StandardCharsets.UTF_8)
+            URLEncoder.encode(handle, StandardCharsets.UTF_8.name())
         val element = httpClient.fetchJson(url, maxBytes = 4 * 1024, json = json)
         val response = json.decodeFromString<ResolveHandleResponse>(element.toString())
         return requireSupportedDid(response.did)
@@ -69,7 +69,7 @@ internal class IdentityResolver(
     private suspend fun resolveDidDocument(did: String): DidDocument {
         val url = when {
             did.startsWith("did:plc:") -> origin(plcDirectory) + "/" +
-                URLEncoder.encode(did, StandardCharsets.UTF_8)
+                URLEncoder.encode(did, StandardCharsets.UTF_8.name())
 
             did.startsWith("did:web:") -> didWebDocumentUrl(did)
             else -> throw IllegalArgumentException("Unsupported DID method")
@@ -132,7 +132,7 @@ private fun didWebDocumentUrl(did: String): String {
 }
 
 private fun decodeDidWebPart(value: String): String =
-    URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8)
+    URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
 
 private fun origin(value: String): String {
     val uri = URI(value)

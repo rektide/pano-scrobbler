@@ -21,6 +21,6 @@ internal fun formDecode(value: String): Map<String, String> = value
         decodeFormPart(name) to decodeFormPart(content)
     }
 
-private fun encodeFormPart(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
+private fun encodeFormPart(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
 
-private fun decodeFormPart(value: String): String = URLDecoder.decode(value, StandardCharsets.UTF_8)
+private fun decodeFormPart(value: String): String = URLDecoder.decode(value, StandardCharsets.UTF_8.name())
