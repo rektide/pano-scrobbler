@@ -8,6 +8,8 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.atproto.kotlin.oauth)
+    implementation(libs.atproto.kotlin.runtime)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.client.core)

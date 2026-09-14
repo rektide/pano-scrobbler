@@ -22,6 +22,11 @@ plugins {
 
 dependencyResolutionManagement {
     repositories {
+        mavenLocal {
+            content {
+                includeGroup("io.github.rektide.atproto")
+            }
+        }
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
