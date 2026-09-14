@@ -91,10 +91,11 @@ jobs:
         with:
           destination: "./static-site"
 
-      - name: Copy .md files
+      - name: Copy static files
         run: |
           cp faq.md static-site/faq.md
           cp privacy-policy.md static-site/privacy-policy.md
+          cp oauth-client-metadata.json static-site/oauth-client-metadata.json
 
       - name: Patch JSON-LD in index.html
         run: |
