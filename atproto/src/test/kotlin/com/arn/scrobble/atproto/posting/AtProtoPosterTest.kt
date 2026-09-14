@@ -10,6 +10,23 @@ import kotlin.test.assertTrue
 
 class AtProtoPosterTest {
     @Test
+    fun `derives writable targets from granted scopes`() {
+        assertEquals(
+            setOf(AtProtoTarget.TEAL),
+            AtProtoTarget.grantedBy("atproto repo:fm.teal.feed.play?action=create"),
+        )
+        assertEquals(
+            AtProtoTarget.entries.toSet(),
+            AtProtoTarget.grantedBy("atproto repo:*?action=create"),
+        )
+        assertEquals(
+            AtProtoTarget.entries.toSet(),
+            AtProtoTarget.grantedBy("atproto transition:generic"),
+        )
+        assertTrue(AtProtoTarget.grantedBy("atproto repo:app.rocksky.scrobble?action=update").isEmpty())
+    }
+
+    @Test
     fun `posts each enabled target and reports partial failures`() = runTest {
         val attempted = mutableListOf<String>()
         val poster = AtProtoPoster(

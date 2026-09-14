@@ -10,7 +10,30 @@ import kotlinx.serialization.json.jsonObject
 
 enum class AtProtoTarget(val collection: String) {
     TEAL("fm.teal.feed.play"),
-    ROCKSKY("app.rocksky.scrobble"),
+    ROCKSKY("app.rocksky.scrobble");
+
+    companion object {
+        fun grantedBy(scope: String): Set<AtProtoTarget> {
+            val values = scope.split(Regex("\\s+")).filter { it.isNotEmpty() }
+            if ("transition:generic" in values) return entries.toSet()
+
+            return entries.filterTo(linkedSetOf()) { target ->
+                values.any { it.grantsCreate(target.collection) }
+            }
+        }
+    }
+}
+
+private fun String.grantsCreate(collection: String): Boolean {
+    if (!startsWith("repo:")) return false
+    val resource = substringAfter("repo:").substringBefore('?')
+    if (resource != "*" && resource != collection) return false
+
+    val query = substringAfter('?', missingDelimiterValue = "")
+    if (query.isEmpty()) return true
+    return query.split('&').any { parameter ->
+        parameter.substringBefore('=') == "action" && parameter.substringAfter('=', "") == "create"
+    }
 }
 
 data class AtProtoPostingConfig(
