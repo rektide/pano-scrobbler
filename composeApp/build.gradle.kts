@@ -91,6 +91,8 @@ kotlin {
         }
 
         commonMain.dependencies {
+            implementation(libs.atproto.kotlin.oauth)
+            implementation(libs.atproto.kotlin.runtime)
             implementation(libs.kotlin.stdlib)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.runtime)
@@ -132,6 +134,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         jvmMain.dependencies {

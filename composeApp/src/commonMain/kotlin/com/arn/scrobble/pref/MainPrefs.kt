@@ -29,6 +29,8 @@ import com.arn.scrobble.utils.PanoNotifications
 import com.arn.scrobble.utils.PlatformStuff
 import com.arn.scrobble.utils.Stuff
 import com.arn.scrobble.utils.getSystemLocale
+import io.github.kikin81.atproto.oauth.OAuthSession
+import io.github.kikin81.atproto.oauth.PendingAuth
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -141,6 +143,8 @@ data class MainPrefs(
     val extractFirstArtistPackages: Set<String> = emptySet(),
     val discordRpc: DiscordRpcPrefs = DiscordRpcPrefs(),
     val proxy: ProxyPrefs = ProxyPrefs(),
+    val atProtoUpstreamPendingAuth: PendingAuth? = null,
+    val atProtoUpstreamSession: OAuthSession? = null,
 ) {
 
     @Serializable
