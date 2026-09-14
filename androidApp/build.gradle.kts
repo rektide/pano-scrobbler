@@ -21,7 +21,7 @@ val APP_NAME_NO_SPACES = rootProject.extra["APP_NAME_NO_SPACES"] as String
 val localProperties = gradleLocalProperties(rootDir, project.providers)
 val atprotoOAuthRedirectUri = providers.environmentVariable("ATPROTO_OAUTH_REDIRECT_URI").orNull
     ?: localProperties.getProperty("atproto.oauthRedirectUri")
-    ?: "io.github.rektide:/pano-scrobbler/oauth/callback"
+    ?: "io.github.kawaiidango:/pano-scrobbler/oauth/callback"
 
 kotlin {
     jvmToolchain(25)

@@ -218,7 +218,7 @@ buildkonfig {
             "ATPROTO_OAUTH_CLIENT_ID",
             providers.environmentVariable("ATPROTO_OAUTH_CLIENT_ID").orNull
                 ?: localProperties.getProperty("atproto.oauthClientId")
-                ?: "https://rektide.github.io/web-scrobbler-pages/pano-scrobbler/oauth-client-metadata.json",
+                ?: "https://kawaiidango.github.io/pano-scrobbler/oauth-client-metadata.json",
             const = true,
         )
         buildConfigField(
@@ -226,7 +226,7 @@ buildkonfig {
             "ATPROTO_OAUTH_REDIRECT_URI",
             providers.environmentVariable("ATPROTO_OAUTH_REDIRECT_URI").orNull
                 ?: localProperties.getProperty("atproto.oauthRedirectUri")
-                ?: "io.github.rektide:/pano-scrobbler/oauth/callback",
+                ?: "io.github.kawaiidango:/pano-scrobbler/oauth/callback",
             const = true,
         )
 

@@ -18,7 +18,7 @@ atproto.oauthRedirectUri=com.example:/pano-scrobbler/oauth/callback
 
 The AT Protocol values are public client identifiers, not secrets. They can alternatively be set
 with the `ATPROTO_OAUTH_CLIENT_ID` and `ATPROTO_OAUTH_REDIRECT_URI` environment variables. The
-defaults use the rektide native-client metadata deployment.
+defaults use the kawaiiDango GitHub Pages native-client metadata deployment.
 
 ### For Android (FOSS):
 
