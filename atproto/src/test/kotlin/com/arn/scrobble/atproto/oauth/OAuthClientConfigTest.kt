@@ -8,13 +8,13 @@ class OAuthClientConfigTest {
     @Test
     fun `accepts a parameterized metadata endpoint`() {
         val config = OAuthClientConfig(
-            clientId = "https://example.com/custom/client.json",
+            clientId = "https://app.example.com/custom/client.json",
             redirectUri = "com.example.app:/oauth/callback",
             scope = "atproto repo:fm.teal.feed.play?action=create",
             responseMode = OAuthResponseMode.FRAGMENT,
         )
 
-        assertEquals("https://example.com/custom/client.json", config.clientId)
+        assertEquals("https://app.example.com/custom/client.json", config.clientId)
     }
 
     @Test
@@ -24,6 +24,9 @@ class OAuthClientConfigTest {
         }
         assertFailsWith<IllegalArgumentException> {
             OAuthClientConfig("https://example.com/client.json", "https://example.com/callback", "repo:foo")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            OAuthClientConfig("https://app.example.com/client.json", "com.other.app:/callback", "atproto")
         }
     }
 }

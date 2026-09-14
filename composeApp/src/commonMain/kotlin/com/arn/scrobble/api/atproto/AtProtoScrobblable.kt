@@ -24,10 +24,13 @@ import com.arn.scrobble.charts.TimePeriod
 import kotlinx.coroutines.CancellationException
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 
 class AtProtoScrobblable(userAccount: UserAccountSerializable) : Scrobblable(userAccount) {
     private val did: String
         get() = userAccount.authKey
+    private val sessionClient = AtProtoSessionClient(Requesters.genericKtorClient, PanoAtProtoStore)
+    private val posters = ConcurrentHashMap<Set<AtProtoTarget>, AtProtoPoster>()
 
     override suspend fun updateNowPlaying(scrobbleData: ScrobbleData) =
         Result.success(ScrobbleResult(ignored = false))
@@ -46,15 +49,16 @@ class AtProtoScrobblable(userAccount: UserAccountSerializable) : Scrobblable(use
                 return Result.success(ScrobbleResult(ignored = false))
             }
 
-            val sessionClient = AtProtoSessionClient(Requesters.genericKtorClient, PanoAtProtoStore)
-            val poster = AtProtoPoster(
-                httpClient = Requesters.genericKtorClient,
-                sessionClient = sessionClient,
-                config = AtProtoPostingConfig(
-                    targets = remainingTargets,
-                    submissionClientAgent = "${BuildKonfig.APP_ID}/${BuildKonfig.VER_NAME}",
-                ),
-            )
+            val poster = posters.computeIfAbsent(remainingTargets.toSet()) { posterTargets ->
+                AtProtoPoster(
+                    httpClient = Requesters.genericKtorClient,
+                    sessionClient = sessionClient,
+                    config = AtProtoPostingConfig(
+                        targets = posterTargets,
+                        submissionClientAgent = "${BuildKonfig.APP_ID}/${BuildKonfig.VER_NAME}",
+                    ),
+                )
+            }
             val result = poster.post(did, play)
             val completed = previouslyCompleted + result.created.keys
 

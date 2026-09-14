@@ -27,6 +27,15 @@ data class OAuthClientConfig(
 
         val redirect = URI(redirectUri)
         require(redirect.isAbsolute && redirect.rawFragment == null) { "OAuth redirect URI is invalid" }
+        if (redirect.scheme != "https") {
+            val expectedScheme = clientUri.host.split('.').asReversed().joinToString(".")
+            require(redirect.scheme == expectedScheme) {
+                "Native OAuth redirect scheme must reverse the client metadata hostname"
+            }
+            require(redirect.rawAuthority == null && redirect.rawPath.startsWith('/')) {
+                "Native OAuth redirect URI must use one slash followed by a path"
+            }
+        }
 
         val scopes = scope.split(Regex("\\s+")).filter { it.isNotEmpty() }
         require(scopes.firstOrNull() == "atproto") { "OAuth scope must start with atproto" }

@@ -61,7 +61,7 @@ class AtProtoSessionClient internal constructor(
             "AT Protocol account is no longer controlled by the session authorization server"
         }
         val response = tokenRequest(
-            server = current.authorizationServer,
+            server = verified.authorizationServer,
             key = current.dpopKey,
             values = mapOf(
                 "grant_type" to "refresh_token",
