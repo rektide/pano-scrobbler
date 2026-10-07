@@ -12,6 +12,8 @@ sources:
     resource: /design/atproto-posting/milestone1.unknown.md
   - id: upstream-main
     resource: https://github.com/kawaiiDango/pano-scrobbler/commit/99015403
+  - id: client-metadata
+    resource: https://rektide.github.io/web-scrobbler-pages/pano-scrobbler/oauth-client-metadata.json
 ---
 
 # Freshening record — rebased onto upstream 2026-10-07
@@ -63,12 +65,34 @@ action needed).
 
 ## Roadmap position
 
-- **M1**: item 1 (Android SDK) ✅, item 3 (fork artifacts) ✅. Remaining: item 2
-  — deploy the Pages client-metadata site; still blocks all real OAuth.
-- **M2** (first real OAuth on a phone) is now unblocked locally: the FOSS debug
-  APK builds. Next physical step remains deploying metadata, then a device
-  session per the M2 checklist.
+- **M1**: item 1 (Android SDK) ✅, item 2 (Pages metadata) ✅, item 3 (fork
+  artifacts) ✅ — M1 is complete. The rektide client-metadata URL
+  (`https://rektide.github.io/web-scrobbler-pages/pano-scrobbler/oauth-client-metadata.json`)
+  is **live** (HTTP 200, `application/json`, verified 2026-10-07); it was
+  deployed via the `web-scrobbler-pages` gh-pages workflow ~3 weeks prior, and
+  milestone1's "both 404" note was stale. The default build's
+  `ATPROTO_OAUTH_CLIENT_ID` / `ATPROTO_OAUTH_REDIRECT_URI` already match it
+  (`io.github.rektide:/pano-scrobbler/oauth/callback`). The kawaiiDango URL
+  remains 404 (upstream-contribution identity; not needed for M2/M3).
+- **M2** (first real OAuth on a phone) is fully unblocked: debug APK builds
+  and the default identity resolves. Next step is the on-device M2 checklist.
 - M3/M4/M5 unchanged.
+
+## Secret storage posture — parity with upstream, confirmed
+
+Checked 2026-10-07 against upstream `99015403`: upstream persists account
+secrets (`UserAccountSerializable.authKey` — lastfm/ListenBrainz session keys,
+Pleroma tokens — plus spotify tokens) as plaintext fields in the same
+DataStore-backed `MainPrefs`, and its `backup_rules.xml` /
+`data_extraction_rules.xml` explicitly *include* shared prefs in full backup,
+cloud backup, and device transfer. Our ATProto sessions (local `AtProtoSession`
+with DPoP private JWK + tokens; fork `OAuthSession`) are stored beside them
+with identical plaintext-and-backed-up treatment — no backup-rule changes were
+made. So: status quo, not a regression. Nuance: our plaintext blob contains a
+private EC key, a more sensitive item than a session key, though DPoP binding
+caps its standalone usefulness. M4.1 (encrypted store, Keystore-held DPoP key,
+backup exclusion, prefs migration, restore-relogin semantics) remains the
+upgrading step and is deliberately sequenced after field validation.
 
 ## Cross-references
 
