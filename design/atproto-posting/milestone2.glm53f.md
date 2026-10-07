@@ -49,6 +49,13 @@ chain is conflict-free end to end, including the `potvlqstlknx` side branch
   (gitignored) carries `sdk.dir` plus dummy `lastfm.key` / `lastfm.secret` /
   `spotify.refreshToken` so the build configures. Real keys still wanted before
   any release build.
+- Personal signing keystore generated at
+  `~/.android/keystores/pano-local-release.jks` (alias `pano-local`), wired via
+  the `release.*` properties in `local.properties`. Needed because the project's
+  `debug` buildType deliberately signs with the `release` config — without it
+  the APK comes out unsigned and won't install. Keep the keystore: sideload
+  upgrades must share its signature. Note official Pano releases use the
+  developer's key; switching between them requires uninstall/reinstall.
 
 ## Verification gates (all run on the rebased tree)
 
@@ -56,7 +63,7 @@ chain is conflict-free end to end, including the `potvlqstlknx` side branch
 |---|---|
 | `:atproto:test` | 52 tests, 0 failures, 0 errors |
 | `:composeApp:jvmTest` | 20 run, 1 failed — `MaiTest.parseYoutubeTitles`, the documented pre-existing failure; all ATProto common tests pass (`AtProtoFieldPathTest`, `PanoUpstreamAtProtoAccountCoordinatorTest`, `PanoUpstreamAtProtoStoresTest`) |
-| `:androidApp:assembleDebug` (default local path) | BUILD SUCCESSFUL |
+| `:androidApp:assembleDebug` (default local path) | BUILD SUCCESSFUL, signed with personal keystore, installable |
 | `:androidApp:assembleDebug -Patproto.useUpstream=true` (fork path) | BUILD SUCCESSFUL |
 
 Maven Local fork artifacts `io.github.rektide.atproto:{runtime,oauth}:9.11.0-pano.1`
