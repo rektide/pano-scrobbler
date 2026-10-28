@@ -23,11 +23,12 @@ class P256JwkTest {
         val key = P256PublicJwk(
             keyType = "EC",
             curve = "P-256",
-            x = "fD3LGX-TLg_UhL1trfxIiLfADwPHI6Oi0XiNqFkB2Ss",
-            y = "jdeIe-uLj5j1PJ6_rShxoRmcXRqWfUjqUVXJmpEaNI4",
+            // secp256r1's generator; the previous arbitrary pair was off-curve.
+            x = "axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY",
+            y = "T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
         )
 
-        assertEquals("Rbxah24dnyZfPc0DPpzGkebvGfN2vL66ZG8w7oQeirQ", key.thumbprint())
+        assertEquals("xx0BcA-wMohw8atYDJOe6peGModklG2wRHBlXHMvl0M", key.thumbprint())
     }
 
     @Test

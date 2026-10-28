@@ -13,26 +13,21 @@ enum class AtProtoTarget(val collection: String) {
     ROCKSKY("app.rocksky.scrobble");
 
     companion object {
-        fun grantedBy(scope: String): Set<AtProtoTarget> {
-            val values = scope.split(Regex("\\s+")).filter { it.isNotEmpty() }
-            if ("transition:generic" in values) return entries.toSet()
+        fun grantedBy(
+            scope: String,
+            selectedTargets: Set<AtProtoTarget> = entries.toSet(),
+        ): Set<AtProtoTarget> {
+            // RFC 6749 scope tokens are space-separated, case-sensitive ASCII.
+            if (scope.any { it != ' ' && it !in '\u0021'..'\u007e' || it == '"' || it == '\\' }) return emptySet()
+            val values = scope.split(' ')
+            if (values.any { it.isEmpty() } || "atproto" !in values) return emptySet()
+            if ("transition:generic" in values) return entries.filterTo(linkedSetOf()) { it in selectedTargets }
+            val permissions = values.mapNotNull(::parseRepoCreateGrant)
 
             return entries.filterTo(linkedSetOf()) { target ->
-                values.any { it.grantsCreate(target.collection) }
+                target in selectedTargets && permissions.any { "*" in it || target.collection in it }
             }
         }
-    }
-}
-
-private fun String.grantsCreate(collection: String): Boolean {
-    if (!startsWith("repo:")) return false
-    val resource = substringAfter("repo:").substringBefore('?')
-    if (resource != "*" && resource != collection) return false
-
-    val query = substringAfter('?', missingDelimiterValue = "")
-    if (query.isEmpty()) return true
-    return query.split('&').any { parameter ->
-        parameter.substringBefore('=') == "action" && parameter.substringAfter('=', "") == "create"
     }
 }
 
