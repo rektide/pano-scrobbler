@@ -24,6 +24,8 @@ sources:
     title: Sol's current-library probes and native account-authority proposal at f72378b4
   - resource: "file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md"
     title: Completed metadata preparation, actual Jekyll fixture and independent operator deliverables
+  - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/storage0.gpt61s.md"
+    title: Implemented native storage boundary, platform factories, checked properties and turnover handoff
 ---
 
 # Clean Pano AT Protocol remake
@@ -120,7 +122,8 @@ directories with that explicit `BEADS_DIR`.
 
 | Owner | Scope | Session |
 |---|---|---|
-| Sol A | Clean app architecture, capability commits and relevant checks; owns `pano-atproto-remake-app` and meaningful child work | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
+| Sol A, completed | Architecture and native storage foundation through `1e44bfac`; retired at 283,943 measured context tokens | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
+| Sol A2, active | Typed OAuth lifecycle and clean app integration; inherits the app workspace and owns `pano-atproto-remake-app-oauth` | `ses_e7b1c1da4ffeyw8XS4l257gfAC` |
 | Sol B | Completed metadata preparation; next owns reusable protocol hardening under `pano-atproto-remake-protocol` in an isolated source line | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
 | Parent | Architectural decisions, cross-workspace integration, evidence synthesis and operator-facing explanation | `ses_e7ba46f7fffeze8ND55fl0uJF8` |
 
@@ -154,6 +157,31 @@ pure record mapping and concrete regression proofs are its scope. The native
 vault and replacement lifecycle interfaces remain with A. The next clean
 implementation worker can deliberately adopt the corrected primitives and
 migration obligations without replaying the old app integration.
+
+### Native storage checkpoint and first turnover
+
+Sol A delivered clean head `1e44bfac450db8e6ec3cdf4f4a96678cfc56b6e3`, comprising
+core storage commit `dffcf585`, platform factory commit `06d280e4`, and a separate
+[storage handoff](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/storage0.gpt61s.md).
+The implementation establishes client/DID/login-generation handles, durable
+single-use pending claims, fresh reads under a stable OS file lock, and an
+explicit interrupted-rotation marker. Android factories use Keystore encryption
+under `noBackupFilesDir`; desktop files use owner-private permissions.
+
+Reported checks: **17/17 storage tests**, including separate OS processes,
+forced process death and cancellation; JVM compilation; Android debug APK
+assembly. The parent read the implemented boundary and accepted it as an
+internal foundation. The storage ticket is closed; its separate native-runtime
+qualification ticket remains open. These results do not establish actual OAuth
+or PDS behavior.
+
+The first worker was turned over at **283,943** reported context tokens. Fresh
+Sol A2 takes the same workspace for typed protocol behavior and eventual Pano
+integration, while B continues isolated primitive hardening. In particular,
+`updateSession` marks credentials before potentially rotating work: ordinary
+authenticated requests need a suitable non-rotating locked operation rather
+than quarantining a session after every harmless network error. Protocol error
+classification and durable rotation now activate their own evidence obligations.
 
 ## Consequential checkpoints
 
@@ -232,6 +260,9 @@ checks; the final selected composition needs integration evidence.
 The SDK's absolute `platform-tools/adb` command is available, but its device
 listing was empty during this commission. Real-device authorization and live
 Rocksky indexing cannot be inferred from mocked HTTP or a debug build.
+The SDK has no installed emulator and `/dev/kvm` is absent. Native Keystore,
+actual Android multiprocess/API 24–25, Windows/macOS and Graal runtime checks
+remain explicitly tracked rather than inferred from Linux host tests.
 
 Workers return at architectural checkpoints. Reported context usage governs
 turnover: target a committed handoff around 240k–300k tokens when further work

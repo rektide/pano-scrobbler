@@ -29,6 +29,9 @@ sources:
 - [Metadata operator handoff](file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md):
   independently prepared Pages code, exact native identity, corrected Jekyll
   artifact evidence, repeatable verification helper and deployment/PR outline.
+- [Clean native storage checkpoint](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/storage0.gpt61s.md):
+  implemented cross-process authority and platform vault factories, exact tested
+  properties, first worker turnover and remaining typed OAuth/runtime work.
 
 ## Implemented architecture
 
