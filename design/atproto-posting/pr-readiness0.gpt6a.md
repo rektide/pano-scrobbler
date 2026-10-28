@@ -62,9 +62,13 @@ This assessment did not modify those defaults or site files.
   tests execute with **20 tests, one failure**. The failure is the documented
   `MaiTest.parseYoutubeTitles` trailing-space expectation: index 46 expects
   `(Artist, Track )`, parser returns `(Artist, Track)`. Its test file has no
-  change against upstream.
+  change against upstream. All 13 ATProto app tests pass.
 - Android build-tools `36.0.0/apksigner verify` accepts
   `androidApp/build/outputs/apk/debug/pano-scrobbler-debug.apk`.
+- `bash gradlew :androidApp:assembleDebug -Patproto.useUpstream=true
+  --console=plain`: successful, including Android recompilation and APK
+  packaging. The output APK now selects this experimental fork backend;
+  rebuild with the default selector before installing a local-path field build.
 - Use `bash gradlew` here: upstream itself tracks the wrapper as mode `100644`.
   SDK and signing properties are configured locally; no property values were
   copied into this report.
