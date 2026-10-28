@@ -7,7 +7,7 @@ status: draft
 generated: { by: "model:openai/gpt-6-astra#xhigh", at: 2026-10-28 }
 sources:
   - resource: "opencode://ses_e7ba46f7fffeze8ND55fl0uJF8"
-    title: Commissioned refresh and Pages port, then recorded the operator's correction to discussion and PR preparation rather than submission
+    title: Commissioned refresh and Pages port, recorded the operator's preparation boundary, and connected the later clean-remake commission
   - resource: "opencode://ses_e7ba37263ffeyDOE27UVF3xl6Q"
     title: Delegated upstream comparison, application build and test evidence, and contribution-boundary assessment
   - resource: "opencode://ses_e7ba31b2dffepgpPzTw9R5f0g2"
@@ -32,7 +32,12 @@ sources:
 
 # Understanding the Pano AT Protocol contribution
 
-**Current commission: equip the operator to discuss and make the PRs.** The
+**Follow-on:** the operator subsequently commissioned a clean implementation
+with two Sol xhigh workers and worker-owned tickets. The
+[remake brief](remake0.gpt6a.md) owns that active work; this document remains the
+system explanation and discussion-oriented PR outline.
+
+**Original preparation commission: equip the operator to discuss and make the PRs.** The
 operator clarified this after the initial submission request. No branch was
 pushed and no PR was created. The GitHub fork
 [`rektide/pano-scrobbler`](https://github.com/rektide/pano-scrobbler) had already

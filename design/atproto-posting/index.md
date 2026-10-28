@@ -7,7 +7,7 @@ status: draft
 generated: { by: "model:openai/gpt-6-astra#xhigh", at: 2026-10-28 }
 sources:
   - resource: "opencode://ses_e7ba46f7fffeze8ND55fl0uJF8"
-    title: Connected the refreshed contribution brief with implementation, fork, and roadmap records
+    title: Connected the refreshed contribution brief and clean-remake commission with implementation, fork, and roadmap records
   - resource: /design/atproto-posting/pr-brief0.gpt6a.md
     title: Current system explanation and discussion-oriented PR outlines
   - resource: /design/atproto-posting/pr-readiness0.gpt6a.md
@@ -18,6 +18,9 @@ sources:
 
 ## Current contribution preparation
 
+- [Clean remake commission](remake0.gpt6a.md): current two-worker implementation
+  effort, preserved source, new bookmarks, ticket ownership and architectural
+  checkpoints, modeled on the newer Web Scrobbler `atproto` boundaries.
 - [System and PR discussion brief](pr-brief0.gpt6a.md): start here for the app,
   metadata-hosting, and library boundaries; prepared Pages workspace; application
   scope choices; and proposed PR outlines.
