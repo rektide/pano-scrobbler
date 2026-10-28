@@ -177,6 +177,37 @@ Rocksky/Teal. Rich now-playing, artwork, charts and social interfaces are the
 broader issue's aspirations; the existing narrow implementation does not
 establish them.
 
+### Pano integration obligations to carry forward
+
+The parent inspected the old self-contained checkpoint's app delta against
+upstream (`99015403..eeb47616`) while the workers owned storage and protocol.
+Its useful native integration should be reconstructed deliberately:
+
+- Preserve `AccountType.ATPROTO(10)` and the existing one-account-per-service
+  behavior of `Scrobblables.add`; a client/DID-scoped vault does not by itself
+  commission a multi-account UI.
+- Route login from onboarding/preferences; hide it on TV. The previous feature
+  already limited AT Protocol to the scrobbles tab and hid love/delete actions in
+  `ScrobblesScreen`. Retain those truthful capability boundaries.
+- Feed both Android callbacks and desktop paste through one strict native
+  callback authority. Keep the existing `pano-scrobbler://screen` navigation
+  filter separate. Inspect the merged manifest, not only Gradle placeholders.
+- Replace the old `LoginViewModel`-owned OAuth instance with the new authority.
+  The old login screen's global “any AT Protocol account exists” completion
+  observation must not prematurely complete a replacement login or cancel its
+  callback merely because an earlier account is present.
+- Preference toggles previously read credential scopes directly from
+  `MainPrefs`. Reconstruct them from a secret-free authoritative account/grant
+  view; enforce the same grant intersection at write time. UI selection cannot
+  grant a missing permission.
+- `Scrobblables` caches providers per process. A retained provider must obtain
+  current authority for its DID/client and must not republish credentials after
+  logout or account replacement. Ordinary account/display persistence should
+  not become a second token store.
+
+These are source-derived integration requirements and review targets. Their
+presence here is not a claim that the unfinished clean app implements them.
+
 ## Native identity rendezvous
 
 ```text
