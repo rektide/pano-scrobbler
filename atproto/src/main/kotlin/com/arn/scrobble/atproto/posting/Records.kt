@@ -71,18 +71,3 @@ internal fun Play.toRockskyRecord(): RockskyScrobbleRecord {
         createdAt = Instant.fromEpochMilliseconds(playedAtMillis).toString(),
     )
 }
-
-private fun String?.cleanOptional(maxBytes: Int): String? = this
-    ?.trim()
-    ?.takeIf { it.isNotEmpty() }
-    ?.truncateUtf8(maxBytes)
-
-private fun String.truncateUtf8(maxBytes: Int): String {
-    if (toByteArray(Charsets.UTF_8).size <= maxBytes) return this
-
-    var end = length
-    while (end > 0 && substring(0, end).toByteArray(Charsets.UTF_8).size > maxBytes) {
-        end -= Character.charCount(codePointBefore(end))
-    }
-    return substring(0, end)
-}
