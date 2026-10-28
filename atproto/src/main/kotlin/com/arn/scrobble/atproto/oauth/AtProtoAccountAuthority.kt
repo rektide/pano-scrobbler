@@ -8,6 +8,7 @@ import com.arn.scrobble.atproto.http.DpopHttp
 import com.arn.scrobble.atproto.http.DpopNonceStore
 import com.arn.scrobble.atproto.http.DpopNonceException
 import com.arn.scrobble.atproto.http.DpopServer
+import com.arn.scrobble.atproto.http.HttpResponseBodyException
 import com.arn.scrobble.atproto.storage.AtProtoAccountStore
 import com.arn.scrobble.atproto.storage.SessionHandle
 import com.arn.scrobble.atproto.storage.SessionSnapshot
@@ -81,20 +82,21 @@ class AtProtoAccountAuthority internal constructor(
         require(callback.issuer == pending.authorizationServer.issuer) { "OAuth callback issuer does not match" }
         if (callback.error != null) throw AuthorizationDeniedException()
         return withClient { client ->
-        val nonces = DpopNonceStore(pending.nonces)
-        val response = formRequest(client, pending.authorizationServer.tokenEndpoint, pending.dpopKey, nonces,
-            mapOf("grant_type" to "authorization_code", "client_id" to pending.clientId, "redirect_uri" to pending.redirectUri,
-                "code" to requireNotNull(callback.code), "code_verifier" to pending.verifier))
-        val token = response.decode<TokenResponse>().token(clock.millis(), claim.did)
-        // Re-resolve the original handle, when present, so a changed handle cannot bind another DID.
-        val verified = withTimeout(REQUEST_TIMEOUT_MILLIS) {
-            OAuthDiscovery(client).resolve(pending.expectedIdentity.handle ?: claim.did)
-        }
-        require(verified.identity.did == claim.did && verified.identity.pds == pending.expectedIdentity.pds &&
-            verified.authorizationServer.issuer == pending.authorizationServer.issuer) { "Authorized identity or server binding changed" }
-        val session = StoredSession(config.clientId, claim.did, verified.identity.handle, verified.identity.pds,
-            verified.authorizationServer, pending.dpopKey, token, nonces.snapshot())
-        account(store.completeAuthorization(claim, encode(session)))
+            val nonces = DpopNonceStore(pending.nonces)
+            val response = formRequest(client, pending.authorizationServer.tokenEndpoint, pending.dpopKey, nonces,
+                mapOf("grant_type" to "authorization_code", "client_id" to pending.clientId, "redirect_uri" to pending.redirectUri,
+                    "code" to requireNotNull(callback.code), "code_verifier" to pending.verifier))
+            if (response.status.value in 200..299) require(response.status.value == 200) { "Invalid token response status" }
+            val token = response.decode<TokenResponse>().token(clock.millis(), claim.did)
+            // Re-resolve the original handle, when present, so a changed handle cannot bind another DID.
+            val verified = withTimeout(REQUEST_TIMEOUT_MILLIS) {
+                OAuthDiscovery(client).resolve(pending.expectedIdentity.handle ?: claim.did)
+            }
+            require(verified.identity.did == claim.did && verified.identity.pds == pending.expectedIdentity.pds &&
+                verified.authorizationServer.issuer == pending.authorizationServer.issuer) { "Authorized identity or server binding changed" }
+            val session = StoredSession(config.clientId, claim.did, verified.identity.handle, verified.identity.pds,
+                verified.authorizationServer, pending.dpopKey, token, nonces.snapshot())
+            account(store.completeAuthorization(claim, encode(session)))
         }
     }
 
@@ -103,7 +105,7 @@ class AtProtoAccountAuthority internal constructor(
 
     suspend fun refresh(handle: SessionHandle): AtProtoAccount = store.withSession(handle) {
         requireHandle(handle)
-        withClient { client -> refreshIfNeeded(handle, client, force = false) }
+        withClient { client -> refreshIfNeeded(handle, client) }
         account(requireNotNull(snapshot()))
     }
 
@@ -111,23 +113,23 @@ class AtProtoAccountAuthority internal constructor(
     suspend fun createRecord(handle: SessionHandle, collection: String, record: JsonObject): JsonObject = store.withSession(handle) {
         requireHandle(handle)
         withClient { client ->
-        refreshIfNeeded(handle, client, force = false)
-        var current = decodeSession(credentials, handle)
-        require("repo:$collection?action=create" in current.token.scope.split(' ')) { "Record collection was not granted" }
-        require(collection == "fm.teal.feed.play" || collection == "app.rocksky.scrobble") { "Unsupported completed-play collection" }
-        val nonces = DpopNonceStore(current.nonces) { values ->
-            current = current.copy(nonces = values)
-            replace(encode(current))
-        }
-        val body = json.encodeToString(CreateRecordRequest(handle.did, collection, record))
-        val response = withTimeout(REQUEST_TIMEOUT_MILLIS) {
-            DpopHttp(client, DpopProofFactory(current.dpopKey, clock), nonces).request(
-                current.pds + "/xrpc/com.atproto.repo.createRecord", HttpMethod.Post, DpopServer.RESOURCE, current.token.accessToken,
-            ) { contentType(ContentType.Application.Json); setBody(body) }
-        }
-        // No blind replay on invalid_token: refresh/retry belongs to a proved non-consuming boundary.
-        // This operation returns errors to the pending-play caller; ordinary failure never marks rotation.
-        response.decode<JsonObject>()
+            refreshIfNeeded(handle, client)
+            var current = decodeSession(credentials, handle)
+            require("repo:$collection?action=create" in current.token.scope.split(' ')) { "Record collection was not granted" }
+            require(collection == "fm.teal.feed.play" || collection == "app.rocksky.scrobble") { "Unsupported completed-play collection" }
+            val nonces = DpopNonceStore(current.nonces) { values ->
+                current = current.copy(nonces = values)
+                replace(encode(current))
+            }
+            val body = json.encodeToString(CreateRecordRequest(handle.did, collection, record))
+            val response = withTimeout(REQUEST_TIMEOUT_MILLIS) {
+                DpopHttp(client, DpopProofFactory(current.dpopKey, clock), nonces).request(
+                    current.pds + "/xrpc/com.atproto.repo.createRecord", HttpMethod.Post, DpopServer.RESOURCE, current.token.accessToken,
+                ) { contentType(ContentType.Application.Json); setBody(body) }
+            }
+            // No blind replay on invalid_token: refresh/retry belongs to a proved non-consuming boundary.
+            // This operation returns errors to the pending-play caller; ordinary failure never marks rotation.
+            response.decode<JsonObject>()
         }
     }
 
@@ -147,9 +149,9 @@ class AtProtoAccountAuthority internal constructor(
         }
     }
 
-    private suspend fun AtProtoAccountStore.SessionOperation.refreshIfNeeded(handle: SessionHandle, client: HttpClient, force: Boolean) {
+    private suspend fun AtProtoAccountStore.SessionOperation.refreshIfNeeded(handle: SessionHandle, client: HttpClient) {
         val current = decodeSession(credentials, handle)
-        if (!force && current.token.expiresAt - clock.millis() > 60_000) return
+        if (current.token.expiresAt - clock.millis() > 60_000) return
         val refreshToken = current.token.refreshToken ?: throw AtProtoOAuthException("Authorization has no refresh token; sign in again")
         // Discovery is not token-consuming: failure must not quarantine a valid rotating credential.
         val verified = withTimeout(REQUEST_TIMEOUT_MILLIS) { OAuthDiscovery(client).resolve(handle.did) }
@@ -168,6 +170,11 @@ class AtProtoAccountAuthority internal constructor(
                 if (cause.status !in 400..599) throw cause
                 failure = cause
                 return@rotate SessionUpdate.Replace(encode(working))
+            } catch (cause: HttpResponseBodyException) {
+                // A received error status still proves no successful grant, even when its body is oversized/broken.
+                if (cause.status !in 400..599) throw cause.failure
+                failure = cause.failure
+                return@rotate SessionUpdate.Replace(encode(working))
             }
             if (response.status.value !in 200..299) {
                 val error = response.oauthError()
@@ -179,6 +186,7 @@ class AtProtoAccountAuthority internal constructor(
                     else -> throw error // Unclassified/malformed response: consumption cannot be ruled out.
                 }
             } else {
+                require(response.status.value == 200) { "Invalid token response status" }
                 val token = response.decode<TokenResponse>().token(clock.millis(), handle.did, refreshToken)
                 SessionUpdate.Replace(encode(working.copy(token = token)))
             }
@@ -199,7 +207,9 @@ class AtProtoAccountAuthority internal constructor(
         if (handle.clientId != config.clientId) throw StaleSessionException()
     }
 
-    private suspend fun <T> withClient(action: suspend (HttpClient) -> T): T = httpClients.acquire().use { action(it.client) }
+    private suspend fun <T> withClient(action: suspend (HttpClient) -> T): T = httpClients.acquire().use {
+        try { action(it.client) } catch (cause: HttpResponseBodyException) { throw cause.failure }
+    }
 
     private fun decodeSession(payload: JsonObject, handle: SessionHandle): StoredSession = json.decodeFromJsonElement<StoredSession>(payload).also {
         require(it.clientId == handle.clientId && it.did == handle.did) { "Stored session identity does not match its handle" }

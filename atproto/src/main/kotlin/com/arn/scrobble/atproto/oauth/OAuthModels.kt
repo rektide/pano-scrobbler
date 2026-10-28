@@ -15,7 +15,7 @@ data class OAuthClientConfig(val clientId: String, val redirectUri: String, val 
             client.rawFragment == null && client.rawQuery == null && client.rawPath.length > 1) { "Invalid native OAuth client ID" }
         val redirect = URI(redirectUri)
         require(redirect.scheme == client.host.split('.').asReversed().joinToString(".") &&
-            redirect.rawAuthority == null && redirect.rawPath.startsWith('/') && !redirect.rawPath.startsWith("//") &&
+            redirect.rawAuthority == null && redirect.rawPath?.startsWith('/') == true && !redirect.rawPath.startsWith("//") &&
             redirect.rawQuery == null && redirect.rawFragment == null) { "Native callback must match the client identity" }
         require(scope.split(' ').firstOrNull() == "atproto" && scope.split(' ').all { it.isNotEmpty() && it.none(Char::isWhitespace) }) {
             "OAuth scope must start with atproto and use single spaces"
