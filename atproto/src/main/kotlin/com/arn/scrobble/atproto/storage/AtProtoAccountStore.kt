@@ -14,6 +14,8 @@ import java.util.UUID
 
 data class SessionHandle(val clientId: String, val did: String, val generation: String)
 
+class AuthorizationAttempt internal constructor(val clientId: String, internal val generation: String)
+
 /** Opaque protocol payloads are encoded by the OAuth owner, not interpreted by storage. */
 data class SessionSnapshot(val handle: SessionHandle, val credentials: JsonObject) {
     override fun toString() = "SessionSnapshot(handle=$handle, credentials=<redacted>)"
@@ -50,6 +52,32 @@ class AtProtoAccountStore(
     @OptIn(ExperimentalSerializationApi::class)
     private val json = Json { exceptionsWithDebugInfo = false }
 
+    /** Reserve before discovery/PAR: logout or a newer login can invalidate slow work. */
+    suspend fun reserveAuthorization(clientId: String): AuthorizationAttempt = locked {
+        require(clientId.isNotBlank())
+        val vault = read()
+        val client = vault.clients[clientId] ?: ClientState()
+        val generation = UUID.randomUUID().toString()
+        save(vault.withClient(clientId, client.copy(pending = null, claim = null, attempt = generation)))
+        AuthorizationAttempt(clientId, generation)
+    }
+
+    suspend fun publishAuthorization(
+        attempt: AuthorizationAttempt,
+        did: String,
+        state: String,
+        expiresAt: Long,
+        authorization: JsonObject,
+    ) = locked {
+        require(did.startsWith("did:") && state.isNotBlank())
+        val vault = read()
+        val client = vault.clients[attempt.clientId] ?: throw StaleAuthorizationException()
+        if (client.attempt != attempt.generation) throw StaleAuthorizationException()
+        save(vault.withClient(attempt.clientId, client.copy(
+            pending = PendingState(did, state, expiresAt, authorization), attempt = null,
+        )))
+    }
+
     suspend fun beginAuthorization(
         clientId: String,
         did: String,
@@ -63,6 +91,7 @@ class AtProtoAccountStore(
         save(vault.withClient(clientId, client.copy(
             pending = PendingState(did, state, expiresAt, authorization),
             claim = null,
+            attempt = null,
         )))
     }
 
@@ -73,7 +102,7 @@ class AtProtoAccountStore(
         val pending = client.pending?.takeIf { it.state == state } ?: return@locked null
         val generation = UUID.randomUUID().toString()
         val claim = if (now < pending.expiresAt) ClaimState(pending.did, generation) else null
-        save(vault.withClient(clientId, client.copy(pending = null, claim = claim)))
+        save(vault.withClient(clientId, client.copy(pending = null, claim = claim, attempt = null)))
         claim?.let { AuthorizationClaim(clientId, it.did, generation, pending.authorization) }
     }
 
@@ -102,23 +131,73 @@ class AtProtoAccountStore(
     suspend fun updateSession(
         handle: SessionHandle,
         action: suspend (JsonObject) -> SessionUpdate,
-    ): SessionSnapshot? = locked {
+    ): SessionSnapshot? = withSession(handle) {
+        rotate(action)
+        snapshot()
+    }
+
+    /** Fresh read through request completion/logout, without marking ordinary requests as rotation. */
+    internal suspend fun <T> withSession(handle: SessionHandle, action: suspend SessionOperation.() -> T): T = locked {
         val vault = read()
         val client = vault.clients[handle.clientId] ?: throw StaleSessionException()
         val session = client.session?.takeIf { it.did == handle.did && it.generation == handle.generation }
             ?: throw StaleSessionException()
         if (session.updating) throw IncompleteSessionUpdateException()
-        currentCoroutineContext().ensureActive()
-        withContext(NonCancellable) {
-            save(vault.withClient(handle.clientId, client.copy(session = session.copy(updating = true))))
-            val updated = when (val result = action(session.credentials)) {
-                is SessionUpdate.Replace -> session.copy(credentials = result.credentials)
-                SessionUpdate.Keep -> session
-                SessionUpdate.Remove -> null
-            }
-            save(vault.withClient(handle.clientId, client.copy(session = updated)))
-            updated?.snapshot(handle.clientId)
+        val operation = SessionOperation(session.credentials, handle, persist = { credentials, updating ->
+            save(vault.withClient(handle.clientId, client.copy(session = credentials?.let {
+                session.copy(credentials = it, updating = updating)
+            })))
+        })
+        try {
+            operation.action()
+        } finally {
+            operation.close()
         }
+    }
+
+    /** Only valid during withSession. Never acquire this store's lock from its action. */
+    internal class SessionOperation internal constructor(
+        initial: JsonObject,
+        private val handle: SessionHandle,
+        private val persist: (JsonObject?, Boolean) -> Unit,
+    ) {
+        private var active = true
+        private var current: JsonObject? = initial
+        val credentials: JsonObject get() {
+            check(active) { "Session operation has completed" }
+            return current ?: throw StaleSessionException()
+        }
+
+        /** Non-rotating metadata (e.g. a response nonce). A failure never marks the old token unsafe. */
+        fun replace(credentials: JsonObject) {
+            this.credentials
+            persist(credentials, false)
+            current = credentials
+        }
+
+        suspend fun rotate(action: suspend (JsonObject) -> SessionUpdate) {
+            val before = credentials
+            currentCoroutineContext().ensureActive()
+            withContext(NonCancellable) {
+                persist(before, true)
+                // Until a final write succeeds this operation must not expose the old credential.
+                current = null
+                val updated = when (val result = action(before)) {
+                    is SessionUpdate.Replace -> result.credentials
+                    SessionUpdate.Keep -> before
+                    SessionUpdate.Remove -> null
+                }
+                persist(updated, false)
+                current = updated
+            }
+        }
+
+        fun snapshot(): SessionSnapshot? {
+            check(active) { "Session operation has completed" }
+            return current?.let { SessionSnapshot(handle, it) }
+        }
+
+        internal fun close() { active = false }
     }
 
     /** Local deletion is durable first; remote revocation is a separate best-effort action. */
@@ -168,6 +247,7 @@ private data class ClientState(
     val pending: PendingState? = null,
     val claim: ClaimState? = null,
     val session: SessionState? = null,
+    val attempt: String? = null,
 )
 
 @Serializable

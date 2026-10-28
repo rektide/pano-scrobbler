@@ -54,6 +54,74 @@ private suspend fun authorize(
 }
 
 class AtProtoAccountStoreTest {
+    @Test fun slowAuthorizationCannotPublishAfterLogoutOrNewAttempt(): Unit = runBlocking {
+        val root = File(temporaryDirectory(), "vault")
+        val vault = store(root)
+        val attempt = vault.reserveAuthorization(CLIENT)
+        store(root).logout(CLIENT)
+        assertFailsWith<StaleAuthorizationException> {
+            vault.publishAuthorization(attempt, DID, "a", 100, credentials("secret"))
+        }
+        val old = vault.reserveAuthorization(CLIENT)
+        val current = store(root).reserveAuthorization(CLIENT)
+        assertFailsWith<StaleAuthorizationException> {
+            vault.publishAuthorization(old, DID, "a", 100, credentials("secret"))
+        }
+        vault.publishAuthorization(current, DID, "b", 100, credentials("current"))
+        assertNull(vault.consumeAuthorization(CLIENT, "a", 1))
+        assertEquals(credentials("current"), assertNotNull(vault.consumeAuthorization(CLIENT, "b", 1)).authorization)
+    }
+
+    @Test fun nonRotatingRequestFailureAndCancellationDoNotQuarantineCredentials(): Unit = runBlocking {
+        val root = File(temporaryDirectory(), "vault")
+        val vault = store(root)
+        val initial = authorize(vault)
+        val failure = IOException("network lost without token rotation")
+        assertEquals(failure.message, assertFailsWith<IOException> {
+            vault.withSession(initial.handle) {
+                replace(credentials("nonce-observed"))
+                throw failure
+            }
+        }.message)
+        assertEquals(credentials("nonce-observed"), store(root).currentSession(CLIENT)?.credentials)
+        val entered = CompletableDeferred<Unit>()
+        val request = launch {
+            vault.withSession(initial.handle) {
+                entered.complete(Unit)
+                awaitCancellation()
+            }
+        }
+        entered.await()
+        request.cancelAndJoin()
+        assertEquals(credentials("nonce-observed"), store(root).currentSession(CLIENT)?.credentials)
+    }
+
+    @Test fun lockedRequestCanRotateWithoutNestedLockAndBlocksLogoutUntilItFinishes(): Unit = runBlocking {
+        val root = File(temporaryDirectory(), "vault")
+        val vault = store(root)
+        val initial = authorize(vault)
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val request = launch {
+            vault.withSession(initial.handle) {
+                rotate { SessionUpdate.Replace(credentials("rotated")) }
+                assertEquals(credentials("rotated"), credentials)
+                entered.complete(Unit)
+                finish.await()
+                replace(credentials("response-nonce"))
+            }
+        }
+        entered.await()
+        val logout = async { store(root).logout(CLIENT) }
+        delay(100)
+        assertFalse(logout.isCompleted)
+        finish.complete(Unit)
+        request.join()
+        assertEquals(credentials("response-nonce"), logout.await()?.credentials)
+        assertNull(vault.currentSession(CLIENT))
+        assertFailsWith<StaleSessionException> { vault.withSession(initial.handle) { error("must not enter") } }
+    }
+
     @Test fun namespacesAndSingleUseSurviveRecreation(): Unit = runBlocking {
         val root = File(temporaryDirectory(), "vault")
         val first = store(root)
