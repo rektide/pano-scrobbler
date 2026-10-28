@@ -43,6 +43,11 @@ fork dependency or the two-backend selector into the clean contribution.
 This is the first checkpoint, not a claim that the proposed feature is built.
 Only baseline verification and an isolated published-library probe have run.
 
+**Later checkpoint:** the parent acknowledged the one-local-path direction.
+[Native storage foundation and handoff](storage0.gpt61s.md) records the first
+implemented slice and its actual checks; the proposal below is preserved as the
+earlier reasoning, not a substitute for that evidence.
+
 ## Destination and scope
 
 On upstream `990154031e761b8e5460a0585fc834b43c9e2d71`, users can authenticate
