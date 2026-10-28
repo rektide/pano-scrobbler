@@ -28,6 +28,8 @@ sources:
     title: Reviewed prepared public native-client identity and permissions
   - resource: "file:///home/rektide/src/pano-oauth-pages-pr/.github/workflows/static-site.yml"
     title: Reviewed artifact copying and existing manual deployment requirements
+  - resource: "file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md"
+    title: Later actual Jekyll-image verification, corrected copy rationale and separate operator handoff
 ---
 
 # Understanding the Pano AT Protocol contribution
@@ -183,17 +185,27 @@ and permissions, without a client secret or user tokens. The authorization
 server fetches it during login. Its `client_id` must exactly equal its served
 URL, and the app's callback must exactly match the declared redirect.
 
-The workflow copies JSON into the Pages artifact after Jekyll because the site
-configuration broadly excludes non-Markdown input. Deployment is currently
-manual/repository-dispatch, coupled to the existing F-Droid publication steps
-and secrets. Merging the two files alone does not deploy them.
+The workflow explicitly copies JSON into the final Pages artifact after Jekyll,
+matching the existing FAQ/privacy copy step. **The later tested Jekyll builder
+already copied the root JSON:** its broad exclusion setting was insufficient
+evidence for the earlier claim that the copy was necessary. The explicit copy
+provides a deterministic final path/byte guarantee.
 
-Sol validated the metadata with official SDK schemas and native-client checks,
-and exercised the workflow's copy commands and local HTTP serving. A full
-Jekyll build was blocked by missing Ruby development headers. The target URL
-still returns 404; live deployment verification remains with the eventual
-deployment. Sol's scratch evidence is under
-`/tmp/opencode/pano-oauth-pages-pr/`.
+The first Sol validated official SDK schemas, native-client invariants, copy
+commands and local HTTP delivery. The second exercised the actual Jekyll action
+image with local fixture values for `url`, `baseurl` and `description`, then
+verified final artifact bytes and project-path serving. This succeeds beyond the
+earlier missing-Ruby-headers limitation, while still being distinct from the
+full F-Droid/secrets/upload/deployment workflow. The official target remains
+404. Deployment is manual/repository-dispatch; merging alone does not deploy.
+
+The code-ready bookmark is `atproto-metadata-ready-20261028`, still at `c45fce9d`.
+Operator helpers, tests, deployment runbook and PR outline are on the separate
+`atproto-metadata-notes-20261028` bookmark at `2c30a896`. Read the
+[metadata handoff](file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md)
+for exact commands and fixture limits. Local preparation ticket
+`pano-atproto-remake-metadata` is closed; the external
+`pano-atproto-remake-metadata-deploy` gate is open.
 
 The app still defaults to the live rektide-hosted metadata and
 `io.github.rektide:/pano-scrobbler/oauth/callback`. Adopting the official identity

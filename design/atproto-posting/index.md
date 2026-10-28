@@ -26,6 +26,9 @@ sources:
   scope choices; and proposed PR outlines.
 - [Upstream readiness assessment](pr-readiness0.gpt6a.md): exact revisions,
   refreshed build/test evidence, Maven Local dependency, and pre-fork checkpoint.
+- [Metadata operator handoff](file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md):
+  independently prepared Pages code, exact native identity, corrected Jekyll
+  artifact evidence, repeatable verification helper and deployment/PR outline.
 
 ## Implemented architecture
 

@@ -22,6 +22,8 @@ sources:
     title: Capability-oriented construction and assessment checkpoints
   - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/remake0.gpt61s.md"
     title: Sol's current-library probes and native account-authority proposal at f72378b4
+  - resource: "file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md"
+    title: Completed metadata preparation, actual Jekyll fixture and independent operator deliverables
 ---
 
 # Clean Pano AT Protocol remake
@@ -119,13 +121,39 @@ directories with that explicit `BEADS_DIR`.
 | Owner | Scope | Session |
 |---|---|---|
 | Sol A | Clean app architecture, capability commits and relevant checks; owns `pano-atproto-remake-app` and meaningful child work | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
-| Sol B | Native metadata contract, artifact/deployment evidence and independent integration assessment; owns `pano-atproto-remake-metadata` and subsequent scoped work | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
+| Sol B | Completed metadata preparation; next owns reusable protocol hardening under `pano-atproto-remake-protocol` in an isolated source line | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
 | Parent | Architectural decisions, cross-workspace integration, evidence synthesis and operator-facing explanation | `ses_e7ba46f7fffeze8ND55fl0uJF8` |
 
 Worker tickets carry scope and acceptance, append-only findings, exact heads and
 checks, current pointers, and session provenance. Completion means the stated
 local outcome was verified; upstream deployment and real-account approval
 remain separate outcomes requiring their actual evidence.
+
+### Metadata completion and reassignment
+
+Sol B completed metadata preparation with the unchanged two-file code bookmark
+`atproto-metadata-ready-20261028` at `c45fce9d`. Separate operator helpers, five
+passing tests and the runbook/PR outline are committed on
+`atproto-metadata-notes-20261028` at `2c30a896`. Its
+[handoff](file:///home/rektide/src/pano-oauth-pages-pr/design/atproto-posting/metadata-handoff0.gpt61s.md)
+records a successful render using the actual Jekyll action image and documented
+local fixture configuration, final copy/byte checks and project-path serving.
+It corrects the earlier exclusion-based rationale: that builder already copies
+root JSON; the explicit final copy is a deterministic artifact guarantee.
+
+`pano-atproto-remake-metadata` is closed for local preparation; the separate
+`pano-atproto-remake-metadata-deploy` ticket remains an operator gate. The code
+bookmark and the notes bookmark intentionally identify different contribution
+scopes.
+
+At 179,042 reported context tokens, Sol B was reassigned to reusable protocol
+hardening in an isolated workspace based on the old self-contained checkpoint
+`eeb47616eb9e8e33b03cc0cc5294b4baba77dace`. This work can proceed alongside
+Sol A's new storage authority: crypto/encoding, identity/discovery, HTTP/DPoP,
+pure record mapping and concrete regression proofs are its scope. The native
+vault and replacement lifecycle interfaces remain with A. The next clean
+implementation worker can deliberately adopt the corrected primitives and
+migration obligations without replaying the old app integration.
 
 ## Consequential checkpoints
 
