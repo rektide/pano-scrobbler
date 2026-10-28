@@ -126,6 +126,7 @@ kotlin {
             implementation(libs.room.runtime)
             implementation(libs.cryptohash)
             implementation(projects.extrasCommon)
+            implementation(projects.atproto)
             implementation(projects.materialColorUtilities)
         }
 
