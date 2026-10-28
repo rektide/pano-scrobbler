@@ -47,9 +47,9 @@ class IdentityResolverTest {
     }
 
     @Test
-    fun `maps path-based did web identifiers to did json`() = runTest {
+    fun `maps hostname did web identifiers to well known did json`() = runTest {
         var requestedPath = ""
-        val did = "did:web:example.com:users:alice"
+        val did = "did:web:example.com"
         val client = HttpClient(MockEngine { request ->
             if (request.url.host == "example.com") {
                 requestedPath = request.url.encodedPath
@@ -61,7 +61,7 @@ class IdentityResolverTest {
 
         val identity = IdentityResolver(client).resolve(did)
 
-        assertEquals("/users/alice/did.json", requestedPath)
+        assertEquals("/.well-known/did.json", requestedPath)
         assertEquals(did, identity.did)
     }
 

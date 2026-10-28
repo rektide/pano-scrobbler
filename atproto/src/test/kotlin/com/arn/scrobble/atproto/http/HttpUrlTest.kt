@@ -3,6 +3,7 @@ package com.arn.scrobble.atproto.http
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import io.ktor.http.Url
 
 class HttpUrlTest {
     @Test
@@ -27,5 +28,21 @@ class HttpUrlTest {
     fun `rejects non-HTTP URLs and user information`() {
         assertFailsWith<IllegalArgumentException> { normalizeHtu("pano-scrobbler:/callback") }
         assertFailsWith<IllegalArgumentException> { normalizeHtu("https://user@example.com/path") }
+    }
+
+    @Test
+    fun `proof target matches the encoded request URL path`() {
+        for (url in listOf(
+            "https://tokens.example.com/jeton/é?x=1", "https://tokens.example.com/😀",
+            "https://tokens.example.com/a%2Fb/%7e", "https://tokens.example.com/a/../token",
+        )) assertEquals(normalizeHtu(Url(url).toString()), normalizeHtu(url), url)
+        assertEquals("https://tokens.example.com/jeton/%C3%A9", normalizeHtu("https://tokens.example.com/jeton/é"))
+    }
+
+    @Test
+    fun `rejects invalid and ambiguous URL ports`() {
+        for (url in listOf("https://tokens.example.com:/token", "https://tokens.example.com:65536/token")) {
+            assertFailsWith<IllegalArgumentException>(url) { normalizeHtu(url) }
+        }
     }
 }
