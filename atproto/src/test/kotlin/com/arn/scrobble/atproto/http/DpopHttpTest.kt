@@ -32,9 +32,9 @@ class DpopHttpTest {
                     headers = headersOf("DPoP-Nonce", "authorization-nonce"),
                 )
             } else {
-                respond("{}", HttpStatusCode.OK)
+                respond("{}", HttpStatusCode.OK, headersOf("DPoP-Nonce", "authorization-next"))
             }
-        })
+        }) { followRedirects = false }
         var jti = 0
         val dpop = DpopHttp(
             client,
@@ -71,9 +71,9 @@ class DpopHttpTest {
                     ),
                 )
             } else {
-                respond("{}", HttpStatusCode.OK)
+                respond("{}", HttpStatusCode.OK, headersOf("DPoP-Nonce", "resource-next"))
             }
-        })
+        }) { followRedirects = false }
         val dpop = DpopHttp(client, DpopProofFactory(generateP256PrivateJwk()))
 
         dpop.request(
@@ -101,7 +101,7 @@ class DpopHttpTest {
                 status = HttpStatusCode.BadRequest,
                 headers = headersOf("DPoP-Nonce", "nonce-$calls"),
             )
-        })
+        }) { followRedirects = false }
         val dpop = DpopHttp(client, DpopProofFactory(generateP256PrivateJwk()))
 
         val response = dpop.request(

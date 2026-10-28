@@ -73,7 +73,7 @@ class DiscoveryTest {
             status = HttpStatusCode.OK,
             headers = headersOf(HttpHeaders.ContentType, "application/json"),
         )
-    })
+    }) { followRedirects = false }
 
     private fun validServerMetadata() = """
         {

@@ -21,7 +21,7 @@ class IdentityResolverTest {
                 "plc.directory" -> respondJson(didDocument(did, "alice.bsky.social"), didContentType = true)
                 else -> error("Unexpected URL ${request.url}")
             }
-        })
+        }) { followRedirects = false }
 
         val identity = IdentityResolver(client).resolve("Alice.Bsky.Social")
 
@@ -39,7 +39,7 @@ class IdentityResolverTest {
                 "plc.directory" -> respondJson(didDocument(did, "mallory.example"), didContentType = true)
                 else -> error("Unexpected URL ${request.url}")
             }
-        })
+        }) { followRedirects = false }
 
         assertFailsWith<IllegalArgumentException> {
             IdentityResolver(client).resolve("alice.bsky.social")
@@ -57,7 +57,7 @@ class IdentityResolverTest {
             } else {
                 respondJson("{\"did\":\"$did\"}")
             }
-        })
+        }) { followRedirects = false }
 
         val identity = IdentityResolver(client).resolve(did)
 

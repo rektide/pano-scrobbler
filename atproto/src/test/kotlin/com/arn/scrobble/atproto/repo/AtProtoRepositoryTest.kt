@@ -150,7 +150,7 @@ private class RepositoryFixture(private val rejectFirstAccessToken: Boolean = fa
             }
             else -> error("Unexpected request ${request.url}")
         }
-    })
+    }) { followRedirects = false }
     private val sessionClient = AtProtoSessionClient(http, sessions)
     val repository = AtProtoRepository(http, sessionClient)
 

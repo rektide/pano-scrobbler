@@ -178,7 +178,7 @@ private class OAuthFixture {
             }
             else -> error("Unexpected request ${request.url}")
         }
-    })
+    }) { followRedirects = false }
 
     val client = AtProtoOAuthClient(
         httpClient = http,
