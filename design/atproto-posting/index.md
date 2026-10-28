@@ -32,6 +32,9 @@ sources:
 - [Clean native storage checkpoint](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/storage0.gpt61s.md):
   implemented cross-process authority and platform vault factories, exact tested
   properties, first worker turnover and remaining typed OAuth/runtime work.
+- [Reusable transport handoff](file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff0.gpt61s.md):
+  four-file HTTP/DPoP hardening delta, original-failure regression proofs and
+  remaining portable validation work for the clean implementation.
 
 ## Implemented architecture
 

@@ -26,6 +26,8 @@ sources:
     title: Completed metadata preparation, actual Jekyll fixture and independent operator deliverables
   - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/storage0.gpt61s.md"
     title: Implemented native storage boundary, platform factories, checked properties and turnover handoff
+  - resource: "file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff0.gpt61s.md"
+    title: Reusable transport fixes, regression evidence and remaining portable validation obligations
 ---
 
 # Clean Pano AT Protocol remake
@@ -124,7 +126,8 @@ directories with that explicit `BEADS_DIR`.
 |---|---|---|
 | Sol A, completed | Architecture and native storage foundation through `1e44bfac`; retired at 283,943 measured context tokens | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
 | Sol A2, active | Typed OAuth lifecycle and clean app integration; inherits the app workspace and owns `pano-atproto-remake-app-oauth` | `ses_e7b1c1da4ffeyw8XS4l257gfAC` |
-| Sol B | Completed metadata preparation; next owns reusable protocol hardening under `pano-atproto-remake-protocol` in an isolated source line | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
+| Sol B, completed | Metadata preparation and reusable transport fixes through `f8d7b93e`; retired at 317,410 measured context tokens | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
+| Sol B2, active | Remaining portable crypto, PKCE, grants, identity/discovery and record validation under `pano-atproto-remake-protocol` | `ses_e7b181b8effef7JO12Vhel0XwH` |
 | Parent | Architectural decisions, cross-workspace integration, evidence synthesis and operator-facing explanation | `ses_e7ba46f7fffeze8ND55fl0uJF8` |
 
 Worker tickets carry scope and acceptance, append-only findings, exact heads and
@@ -182,6 +185,33 @@ integration, while B continues isolated primitive hardening. In particular,
 authenticated requests need a suitable non-rotating locked operation rather
 than quarantining a session after every harmless network error. Protocol error
 classification and durable rotation now activate their own evidence obligations.
+
+### Reusable transport checkpoint and second turnover
+
+Sol B delivered code `f8d7b93edab8553f667b7d6ddf08c18b5f2f33d0` on
+`atproto-protocol-hardened-20261028`, with separate notes at `508ceaff`.
+The carryable delta consists of four HTTP source files and targeted tests:
+genuinely streaming bounded responses, strict UTF-8, dedicated no-redirect/retry
+client guards, exact authentication-challenge parsing, required nonce
+observation, distinct authorization/resource nonce contexts, and a single
+fresh-proof retry even when the nonce value is unchanged.
+
+The fixed module passes **55/55 tests**. All nine added transport regressions
+fail on a freshly built old checkpoint. Five further observation probes
+demonstrate malformed old callback, expiry, JWK, PKCE and grant handling; their
+passing result records bad behavior and must not be called conformance.
+The [transport handoff](file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff0.gpt61s.md)
+pins exact files, original-failure evidence, integration duties and remaining
+validation findings. Its stable notes workspace preserves that evidence while
+the implementation workspace advances from the separate code bookmark.
+
+The second worker turned over at **317,410** reported context tokens. Fresh B2
+continues portable validation in the isolated source workspace; A2 owns new
+callback/token and lifecycle composition. A2's ticket received the immutable
+transport receipt and malformed-callback/expiry probes. The whole old branch
+is not the clean integration input. In particular, nonces must become durable
+within the new native authority, and actual engine redirect/retry policy must
+match the utility guard's assumptions.
 
 ## Consequential checkpoints
 
