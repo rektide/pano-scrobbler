@@ -20,6 +20,8 @@ sources:
     title: Inspected lifecycle ownership, DID-only account pointer and library-backed client construction
   - resource: "file:///home/rektide/src/rekon/remake/README.md"
     title: Capability-oriented construction and assessment checkpoints
+  - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/remake0.gpt61s.md"
+    title: Sol's current-library probes and native account-authority proposal at f72378b4
 ---
 
 # Clean Pano AT Protocol remake
@@ -73,6 +75,35 @@ The substantial Kotlin choice is who owns the OAuth protocol implementation
 and how that code is obtained reproducibly. The old full feature stack depends
 on machine-local fork artifacts even when the default backend is selected.
 The clean proposal must give an explicit dependency and maintenance account.
+
+### First architectural decision
+
+At worker checkpoint `f72378b4c057b41f26b8342deb7a5c24507cb2df`, the parent
+selected **one narrow Pano-owned Kotlin protocol implementation**, using existing
+public dependencies, for the clean line. The dual-backend experiment remains in
+the preserved source history.
+
+This choice uses current evidence: Sol exercised published `atproto-kotlin`
+**9.13.0** with five probes against public Maven artifacts. They reproduce missing
+callback/token binding and grant validation, insufficient discovery binding,
+and missing resource-response nonce observation. These passing probes demonstrate
+undesirable library behavior; they are not a conformance pass. The
+[worker checkpoint](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/remake0.gpt61s.md)
+records the pinned sources, results and alternatives.
+
+The next commissioned slice establishes a dedicated credential vault and stable
+cross-process account lock. Android Keystore encryption and non-backup storage,
+desktop user-private persistence, fresh session reads, and durable callback-state
+consumption are implementation hypotheses to verify. General preferences should
+not be locked through OAuth network work. The dedicated HTTP boundary must retain
+Pano's proxy/TLS/user-agent policy and proxy invalidation, while allowing the
+protocol layer to inspect OAuth error responses rather than encountering the
+generic client's Last.fm-style response validator.
+
+At this decision, only the clean upstream baseline and library probes had been
+checked; no production feature code had yet been ported. Worker A resumed for
+the bounded native-authority slice at 226,416 reported context tokens, with a
+handoff requested around 280k–320k before a fresh worker takes the next slice.
 
 ## Parallel ownership and tickets
 

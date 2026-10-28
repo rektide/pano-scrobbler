@@ -43,8 +43,11 @@ pushed and no PR was created. The GitHub fork
 [`rektide/pano-scrobbler`](https://github.com/rektide/pano-scrobbler) had already
 been created, with local remote `fork`, before that clarification.
 
-The application contribution scope is still open. The Pages change is committed
-locally in its own workspace and bookmark. [Reading index](index.md).
+At this preparation checkpoint the application contribution scope was still
+open. The subsequent [remake decision](remake0.gpt6a.md#first-architectural-decision)
+selects a single narrow Pano-owned implementation using current library evidence.
+The Pages change is committed locally in its own workspace and bookmark.
+[Reading index](index.md).
 
 ## 1. The system in one picture
 
