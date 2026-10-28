@@ -8,9 +8,11 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.ktor.client.core)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
 }
 
 tasks.test {
