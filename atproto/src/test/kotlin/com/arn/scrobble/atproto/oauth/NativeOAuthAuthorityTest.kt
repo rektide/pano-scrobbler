@@ -143,6 +143,20 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun boundedErrorBodyFailureRetainsRefreshWhileOversizedSuccessIsQuarantined(): Unit = runBlocking {
+        for (status in listOf(200, 503)) {
+            val f = Fixture()
+            val account = f.login()
+            f.now += 120_000
+            f.intercept = { request ->
+                if (request.url.encodedPath == "/oauth/token") json("x".repeat(65_537), status, "oversized-response") else null
+            }
+            assertFailsWith<IllegalArgumentException> { f.authority().refresh(account.session) }
+            if (status == 200) assertFailsWith<IncompleteSessionUpdateException> { f.authority().currentAccount() }
+            else assertEquals(account, f.authority().currentAccount())
+        }
+    }
+
     @Test fun nonceChallengeRetriesOnceWithNewProofAndPersistsTheFinalParNonce(): Unit = runBlocking {
         val f = Fixture()
         var parCalls = 0
