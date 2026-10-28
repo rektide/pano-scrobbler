@@ -35,6 +35,7 @@ dependencyResolutionManagement {
 }
 
 include(":composeApp")
+include(":atproto")
 include(":extras-play")
 include(":extras-common")
 include(":extras-nonplay")
