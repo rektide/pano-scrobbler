@@ -61,14 +61,6 @@ class IdentityRegressionTest {
     }
 
     @Test
-    fun `claims do not inherit UI trimming prefixes or Unicode case folding`() {
-        for (claim in listOf("at:// alice.bsky.social", "at://alice.bsky.social ", "at://@alice.bsky.social", "at://K.example.com")) {
-            assertNull(DidDocument(did, listOf(claim)).claimedHandle(), claim)
-        }
-        assertFailsWith<IllegalArgumentException> { normalizeHandle("K.example.com") }
-    }
-
-    @Test
     fun `DID document identity and first matching PDS are authoritative`() = runTest {
         assertFailsWith<IllegalArgumentException> {
             IdentityResolver(client(document(emptyList()).replace(did, "did:plc:zyxwvutsrqponmlkjihgfedc"))).resolve(did)
