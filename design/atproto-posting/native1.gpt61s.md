@@ -3,7 +3,7 @@ type: Implementation handoff
 title: Portable adoption and native feature qualification
 description: Pinned portable adoption, R1/R2 corrections, actual-vault login and reference recovery checks, exact contribution boundaries and the outstanding engine receipt.
 resource: /design/atproto-posting/native1.gpt61s.md
-status: qualification-checkpoint
+status: historical-qualification-checkpoint
 generated: { by: "model:openai/gpt-6.1-sol#xhigh", at: 2026-10-29 }
 extensions:
   ticket: pano-atproto-remake-app-integration
@@ -35,6 +35,10 @@ sources:
 ---
 
 # Portable adoption and native qualification
+
+This records the accepted **`43065bf3` predecessor**. Its R3-pending statements
+are historical; [final integrated qualification](native2.gpt61s.md) incorporates
+the exact transport receipt and records the subsequent checks.
 
 This continues the [activated native prefix](native0.gpt61s.md), not the old
 standalone OAuth/poster composition. No backend or library research was repeated.

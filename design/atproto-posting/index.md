@@ -11,7 +11,7 @@ sources:
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
     title: Connect executable OAuth to activated native account/provider/UI integration, checks and fresh-worker handoff
   - resource: "opencode://ses_e7aedded3ffe8r5OwrYTHwM2nl"
-    title: Connect portable adoption and review corrections to qualified native login and reference recovery
+    title: Connect portable adoption, all three review corrections and the final integrated host/native feature receipt
   - resource: /design/atproto-posting/remake0.gpt61s.md
     title: Architecture proposal and current published-library qualification
   - resource: /design/atproto-posting/storage0.gpt61s.md
@@ -22,13 +22,17 @@ sources:
     title: Activated native integration, exact checks and remaining primitive qualification
   - resource: /design/atproto-posting/native1.gpt61s.md
     title: Adopted portable validation, R1/R2 dispositions, native qualification and outstanding real-engine receipt
+  - resource: /design/atproto-posting/native2.gpt61s.md
+    title: Final exact R3 adoption, one-use browser launch correction and integrated qualification boundaries
 ---
 
 # Clean AT Protocol contribution reading map
 
 ## Current implementation
 
-- [Portable adoption and native qualification](native1.gpt61s.md): current tip;
+- [Final integrated native feature](native2.gpt61s.md): current tip; exact B3
+  one-shot transport adoption, browser-launch correction and combined checks.
+- [Portable adoption and native qualification](native1.gpt61s.md): accepted predecessor;
   strict shared primitives, R1/R2 corrections, actual-vault login/publication and
   generation/reference removal recovery. R3 engine receipt is still required.
 - [Activated native integration and turnover](native0.gpt61s.md): preceding prefix;
