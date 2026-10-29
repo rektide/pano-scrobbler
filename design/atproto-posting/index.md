@@ -10,6 +10,8 @@ sources:
     title: Connect the acknowledged architecture to the implemented storage boundary and fresh-worker handoff
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
     title: Connect executable OAuth to activated native account/provider/UI integration, checks and fresh-worker handoff
+  - resource: "opencode://ses_e7aedded3ffe8r5OwrYTHwM2nl"
+    title: Connect portable adoption and review corrections to qualified native login and reference recovery
   - resource: /design/atproto-posting/remake0.gpt61s.md
     title: Architecture proposal and current published-library qualification
   - resource: /design/atproto-posting/storage0.gpt61s.md
@@ -18,13 +20,18 @@ sources:
     title: Native OAuth lifecycle, dedicated transport and pending primitive/app integration
   - resource: /design/atproto-posting/native0.gpt61s.md
     title: Activated native integration, exact checks and remaining primitive qualification
+  - resource: /design/atproto-posting/native1.gpt61s.md
+    title: Adopted portable validation, R1/R2 dispositions, native qualification and outstanding real-engine receipt
 ---
 
 # Clean AT Protocol contribution reading map
 
 ## Current implementation
 
-- [Activated native integration and turnover](native0.gpt61s.md): current tip;
+- [Portable adoption and native qualification](native1.gpt61s.md): current tip;
+  strict shared primitives, R1/R2 corrections, actual-vault login/publication and
+  generation/reference removal recovery. R3 engine receipt is still required.
+- [Activated native integration and turnover](native0.gpt61s.md): preceding prefix;
   AccountType 10, provider, browser/native/paste callback, destination controls,
   generation-safe publication and partial-target delivery. See the
   [concise contributor guide](/doc/atproto.md) for use, overrides and PR scopes.
