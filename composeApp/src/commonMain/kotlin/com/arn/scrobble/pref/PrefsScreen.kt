@@ -977,7 +977,7 @@ fun PrefsScreen(
 
         AccountType.entries
             .filterNot {
-                PlatformStuff.isTv && it == AccountType.FILE
+                PlatformStuff.isTv && it in setOf(AccountType.FILE, AccountType.ATPROTO)
             }
             .forEach { accountType ->
                 val (strRes, formatRes) = accountTypeStringRes(accountType)
@@ -1167,4 +1167,3 @@ private data class TitleStringResource(
     val formatRes: StringResource?,
     var string: String? = null
 )
-

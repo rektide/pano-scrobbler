@@ -109,6 +109,15 @@
                 <data android:host="screen" />
             </intent-filter>
 
+            <!-- Single-slash native URIs have no authority. Android ignores path without a host;
+                 match the scheme here and enforce the exact URI in the shared OAuth authority. -->
+            <intent-filter android:label="AT Protocol authorization">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="${atprotoRedirectScheme}" />
+            </intent-filter>
+
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
