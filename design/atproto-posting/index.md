@@ -35,6 +35,12 @@ sources:
 - [Reusable transport handoff](file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff0.gpt61s.md):
   four-file HTTP/DPoP hardening delta, original-failure regression proofs and
   remaining portable validation work for the clean implementation.
+- [Portable validation adoption map](file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff1.gpt61s.md):
+  completed key/PKCE/grant/identity/record fixes, current schema evidence and
+  exact source/test boundaries to integrate into the clean app.
+- [Executable native OAuth checkpoint](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/oauth0.gpt61s.md):
+  typed lifecycle, durable error/rotation boundaries, leased real transport and
+  remaining account/provider/UI integration.
 
 ## Implemented architecture
 

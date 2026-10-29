@@ -5,6 +5,7 @@ description: Commission, preserved source, parallel implementation owners, archi
 resource: /design/atproto-posting/remake0.gpt6a.md
 status: draft
 generated: { by: "model:openai/gpt-6-astra#xhigh", at: 2026-10-28 }
+updated: { by: "model:openai/gpt-6-astra#xhigh", at: 2026-10-29 }
 extensions:
   ticket: pano-atproto-remake
 sources:
@@ -28,6 +29,10 @@ sources:
     title: Implemented native storage boundary, platform factories, checked properties and turnover handoff
   - resource: "file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff0.gpt61s.md"
     title: Reusable transport fixes, regression evidence and remaining portable validation obligations
+  - resource: "file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff1.gpt61s.md"
+    title: Completed portable input, identity, discovery and record validation with exact adoption map
+  - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/oauth0.gpt61s.md"
+    title: Executable typed native OAuth and leased transport checkpoint with current integration obligations
 ---
 
 # Clean Pano AT Protocol remake
@@ -39,6 +44,11 @@ Web Scrobbler `atproto` design, with **two Sol xhigh workers**. Each worker owns
 and maintains readable tickets. The deliverable remains local, reviewable work
 and the knowledge needed to discuss and make PRs; the earlier boundary against
 automatic submission continues.
+
+Current coherent state: native storage and internal OAuth are executable; portable
+protocol corrections and independent metadata preparation are ready. Native
+account/provider/UI activation is the active implementation slice. A separate
+review examines the frozen internal lifecycle checkpoint while that work proceeds.
 
 The previous [discussion brief](pr-brief0.gpt6a.md) explains the system and
 possible contributions. This commission advances from discussing those
@@ -127,7 +137,7 @@ directories with that explicit `BEADS_DIR`.
 | Sol A, completed | Architecture and native storage foundation through `1e44bfac`; retired at 283,943 measured context tokens | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
 | Sol A2, active | Typed OAuth lifecycle and clean app integration; inherits the app workspace and owns `pano-atproto-remake-app-oauth` | `ses_e7b1c1da4ffeyw8XS4l257gfAC` |
 | Sol B, completed | Metadata preparation and reusable transport fixes through `f8d7b93e`; retired at 317,410 measured context tokens | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
-| Sol B2, active | Remaining portable crypto, PKCE, grants, identity/discovery and record validation under `pano-atproto-remake-protocol` | `ses_e7b181b8effef7JO12Vhel0XwH` |
+| Sol B2, active | Completed portable validation through `1a0c119e`; now independently reviews frozen native OAuth head `def70d8a` | `ses_e7b181b8effef7JO12Vhel0XwH` |
 | Parent | Architectural decisions, cross-workspace integration, evidence synthesis and operator-facing explanation | `ses_e7ba46f7fffeze8ND55fl0uJF8` |
 
 Worker tickets carry scope and acceptance, append-only findings, exact heads and
@@ -212,6 +222,39 @@ transport receipt and malformed-callback/expiry probes. The whole old branch
 is not the clean integration input. In particular, nonces must become durable
 within the new native authority, and actual engine redirect/retry policy must
 match the utility guard's assumptions.
+
+### Executable OAuth and portable adoption rendezvous
+
+A2 returned `def70d8a42e58c60de520ae154f03c6c7bb97fef`, with source through
+`04a2cda4`: non-rotating locked requests, pre-discovery reservations, typed native
+PAR/callback/token/refresh behavior, durable nonce handling and leased HTTP engines
+that retire safely on proxy changes. Reported checks pass **41 module tests**, one
+real OkHttp test covering redirect statuses 301/302/303/307/308, and Android debug
+assembly. Read the [OAuth checkpoint](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/oauth0.gpt61s.md).
+The parent reviewed this boundary and resumed A2 at 209,471 context tokens for
+record submission, safe resource-token recovery and generation-safe native
+account/UI integration. Optional token expiry needs an explicit interoperability
+policy; it must not be described as a mandatory OAuth field without a basis.
+
+B2 then delivered portable code `1a0c119e372af16298b004d81aebf21e657b3015`, notes
+`9194a163`, and **86 passing module tests**. New original-baseline probes executed
+22 tests with 17 expected failures and five positive controls. Corrections cover
+imported P-256 material, PKCE, granular permissions, current identity/discovery
+rules, duplicate/depth-bounded JSON, and bounded Unicode-safe record conversion.
+Current Rocksky source confirms milliseconds; the older separate schema archive's
+seconds description does not override it. Teal remains seconds.
+
+The [portable adoption map](file:///home/rektide/src/pano-atproto-protocol-notes/design/atproto-posting/protocol-handoff1.gpt61s.md)
+names precisely which files and tests carry over. A2's ticket now has that
+immutable receipt. Its new native authority and constructors remain authoritative;
+only the target-grant portion of the obsolete poster is reusable. The full
+serialized outgoing request bound and actual record response validation belong
+to the new writer, not the pure mapping tests.
+
+B2 finished the portable slice at 195,558 measured context tokens and continues
+with a bounded independent review of frozen clean head `def70d8a`, rather than
+reading A2's active tree or padding the turnover budget. Already acknowledged
+provisional imports are distinct from defects in the new native composition.
 
 ## Consequential checkpoints
 
