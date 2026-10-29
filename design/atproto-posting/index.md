@@ -51,6 +51,10 @@ sources:
 - [Independent lifecycle review](file:///home/rektide/src/pano-atproto-review/design/atproto-posting/lifecycle-review0.gpt61s.md):
   frozen-head evidence for engine replay, callback exception and received-error
   corrections, plus successful generation/durable-publication counterexamples.
+- [Final UI correction receipt](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/ui-corrections0.gpt61s.md)
+  and [independent delta verdict](file:///home/rektide/src/pano-atproto-ui-review/design/atproto-posting/ui-review0.gpt61s.md):
+  actual callback/browser/preference corrections, affected tests and the final
+  source-bound finding of no remaining substantiated local blocker.
 
 ## Implemented architecture
 

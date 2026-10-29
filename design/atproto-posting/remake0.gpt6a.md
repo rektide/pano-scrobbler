@@ -37,6 +37,10 @@ sources:
     title: Activated native provider/UI prefix, source stages, tests and remaining adoption work
   - resource: "file:///home/rektide/src/pano-atproto-review/design/atproto-posting/lifecycle-review0.gpt61s.md"
     title: Independent frozen-head lifecycle review with real hidden-replay and error-boundary findings
+  - resource: "file:///home/rektide/src/pano-atproto-ui-review/design/atproto-posting/ui-review0.gpt61s.md"
+    title: Final independent exact-delta assessment resolves UI findings and cancellation cleanup
+  - resource: /design/atproto-posting/contribution0.gpt6a.md
+    title: Final operator-ready contribution coordinates, verified lineage, scope and PR outlines
 ---
 
 # Clean Pano AT Protocol remake
@@ -49,10 +53,12 @@ and maintains readable tickets. The deliverable remains local, reviewable work
 and the knowledge needed to discuss and make PRs; the earlier boundary against
 automatic submission continues.
 
-Current coherent state: the native account/provider/UI path is implemented as a
-development preview. Final portable adoption and three concrete lifecycle review
-corrections are being integrated and qualified. Independent metadata preparation
-is complete locally; native device/runtime and deployment evidence remain separate.
+Current coherent state: the local application and metadata contributions are
+prepared, the portable code and all concrete review corrections are integrated,
+and the final independent delta assessment found no remaining substantiated local
+blocker. Native device/runtime and deployment evidence remain separate. Start
+with the [operator brief](contribution0.gpt6a.md) for current coordinates and use
+this document for the implementation and review history.
 
 The previous [discussion brief](pr-brief0.gpt6a.md) explains the system and
 possible contributions. This commission advances from discussing those
@@ -140,10 +146,11 @@ directories with that explicit `BEADS_DIR`.
 |---|---|---|
 | Sol A, completed | Architecture and native storage foundation through `1e44bfac`; retired at 283,943 measured context tokens | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
 | Sol A2, completed | Typed OAuth and native feature prefix through `a38b6272`; retired at 307,727 measured context tokens | `ses_e7b1c1da4ffeyw8XS4l257gfAC` |
-| Sol A3, active | Final portable adoption, lifecycle review corrections and integrated feature qualification in the app workspace | `ses_e7aedded3ffe8r5OwrYTHwM2nl` |
+| Sol A3, completed | Portable adoption, R1/R2/R3 integration and native feature qualification; finished at 289,542 measured context tokens | `ses_e7aedded3ffe8r5OwrYTHwM2nl` |
+| Sol A4, completed | Bounded callback/browser/preference UI corrections and cancellation qualification; finished useful work at 157,580 tokens | `ses_e7ac533aeffebK2LtBfRou0pzm` |
 | Sol B, completed | Metadata preparation and reusable transport fixes through `f8d7b93e`; retired at 317,410 measured context tokens | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
 | Sol B2, completed | Portable validation through `1a0c119e` and independent lifecycle review through `78fff9d8`; retired at 282,508 measured context tokens | `ses_e7b181b8effef7JO12Vhel0XwH` |
-| Sol B3, active | Focused real-engine one-shot credential correction, independently carryable into the app | `ses_e7af14a6cffeDevLvL0joxsto6` |
+| Sol B3, completed | One-shot engine correction, independent combined review and exact UI-delta follow-up; finished at 316,881 measured context tokens | `ses_e7af14a6cffeDevLvL0joxsto6` |
 | Parent | Architectural decisions, cross-workspace integration, evidence synthesis and operator-facing explanation | `ses_e7ba46f7fffeze8ND55fl0uJF8` |
 
 Worker tickets carry scope and acceptance, append-only findings, exact heads and
@@ -297,6 +304,35 @@ independent engine correction. A3's final composition must adopt that correction
 before readiness is claimed. Parent source review additionally asks UI tests to
 cover late global login-state outcomes, duplicate callback delivery and retained
 browser-launch effects alongside the already fenced credential generation.
+
+### Final UI corrections, independent assessment and prepared series
+
+A4 corrected F1 callback arbitration, remaining F2 logout/expiry obligations,
+F3 preference-action error handling and current-work timeout cleanup at
+`18da8b912068a314493fef278c7b4c8290c800dd`, with guide `a17414ed` and evidence
+`fd9992d6`. Reported final affected checks pass 34 module tests, 34 AT Protocol
+app tests and Android debug assembly. The actual PAR deadline case takes
+40.173 seconds and permits a subsequent attempt. Prior broader module/full-app
+results remain attributed rather than represented as rerun.
+
+B3's independent exact-delta report `a4c5dae47d3832deab7199d34e99ae488626e29e`
+resolves all three UI findings and cancellation cleanup, with no remaining
+substantiated local blocker or new concrete blocker found in that delta. Its
+[source/test assessment](file:///home/rektide/src/pano-atproto-ui-review/design/atproto-posting/ui-review0.gpt61s.md)
+is deliberately narrower than device/runtime or live-account certification.
+
+The parent assembled 19 capability/guide commits on
+`atproto-native-20261029` at `775d4fa61dce7ff17995a042cb9f31225d6d126c`, in
+`/home/rektide/src/pano-atproto-contribution`. No squash or original-history
+rewrite was used; author identity/date preservation was checked. The resulting
+feature tree equals source `fd9992d6` exactly except for eight omitted research
+files. The independent two-file metadata bookmark remains
+`atproto-metadata-ready-20261028` at `c45fce9d`. Both remain unpushed.
+
+The final [operator brief](contribution0.gpt6a.md) holds the architecture, current
+branch map, qualification bounds, two PR outlines and manual publication commands.
+Local preparation is complete; native runtime and authorized metadata deployment
+remain separately tracked. A final upstream fetch on October 29 changed nothing.
 
 ## Consequential checkpoints
 
