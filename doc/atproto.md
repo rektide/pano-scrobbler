@@ -12,6 +12,8 @@ sources:
     title: Integrated portable validation and one-shot transport, corrected lifecycle failures, and qualified native login and reference recovery through host tests and Android builds
   - resource: "opencode://ses_e7af14a6cffeDevLvL0joxsto6"
     title: Implemented the public one-shot OkHttp body policy and real-wire replay, nonce retry and proxy CONNECT regressions
+  - resource: "opencode://ses_e7ac533aeffebK2LtBfRou0pzm"
+    title: Corrected bounded callback delivery, native-correlated browser commands, timeout cleanup and preference action errors with actual-controller and vault regressions
   - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/PanoAtProto.kt
     title: Shared native authority and client identity
   - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/onboarding/AtProtoLoginScreen.kt
@@ -22,6 +24,10 @@ sources:
     title: Generation-specific completion, duplicate callback coordination and explicit publication retry
   - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/PanoAtProtoAccountsTest.kt
     title: Actual-vault application qualification with synthetic HTTP and preference failures
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoLoginUiTest.kt
+    title: Callback ownership, browser expiry and invalidation, real PAR timeout and preference action cancellation/retry checks
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/AtProtoAccountActions.kt
+    title: Actual preference removal and enable action error/snackbar boundaries
   - resource: /atproto/src/main/kotlin/com/arn/scrobble/atproto/posting/Records.kt
     title: Separate bounded Teal and Rocksky record mapping and duration units
   - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/AtProtoTransport.kt
@@ -51,7 +57,16 @@ login screen. Never share that URL or put it in a bug report.
 
 Automatic browser opening is claimed once per launch. Returning to the login
 screen does not automatically reopen an earlier approval request; the waiting
-screen retains a button for explicit browser reopening.
+screen retains a button for explicit browser reopening. Both dispatch paths check
+that the attempt is still current and unexpired in the native vault. Logout,
+matching account removal or a newer attempt invalidates the old command; an
+already-open external browser cannot be recalled.
+
+Callbacks use the same native validator whether received or pasted. Identical
+in-flight deliveries are deduplicated; up to four distinct deliveries wait behind
+the current operation. Overflow asks for explicit redelivery. An unrelated invalid
+callback does not discard a new login's launch. Timeout/cancellation releases UI
+busy state so you can explicitly start a new attempt; it never replays a code exchange.
 
 Pano keeps one AT Protocol account. Reauthorization replaces its login generation;
 same-account destination choices and its enabled/disabled setting are preserved.
@@ -74,7 +89,9 @@ newer login that replaced it while the screen was open. After switching build
 identity, sign in afresh. You may explicitly remove the old displayed reference
 and its old-client authorization; nothing is automatically migrated or pruned.
 If removal of the display reference fails, authorization is already removed;
-retry the explicit removal. A corrupt vault or missing encryption key fails
+retry the explicit removal. Preference removal and enable/disable errors are
+reported without raw exception or callback details; a stale toggle cannot change
+a replacement login. A corrupt vault or missing encryption key fails
 closed rather than silently resetting credentials.
 
 ## Client identity and development
@@ -164,10 +181,12 @@ bash gradlew :atproto:test :composeApp:jvmTest \
   --tests 'com.arn.scrobble.api.atproto.*' :androidApp:assembleDebug
 ```
 
-The checked native prefix passes **96 module tests and 20 AT Protocol app tests**;
-Android debug APK assembly succeeds. The full app suite is **26/27 passing**:
-only the known `MaiTest.parseYoutubeTitles` upstream trailing-space assertion fails.
-The `--continue` command therefore exits nonzero despite completing APK assembly.
+The UI-corrected prefix passes **34 affected storage/OAuth module tests and all
+34 AT Protocol app tests**; Android debug APK assembly succeeds. The prior complete
+module receipt was **96/96**; unaffected checks were not repeated for this UI delta.
+The last full app suite, before this correction, was **26/27 passing**, with only
+the known `MaiTest.parseYoutubeTitles` upstream trailing-space assertion failure.
+The unfiltered `--continue` command includes that unrelated baseline failure.
 Host tests/builds do not qualify Android Keystore/API 24/25 runtime, interactive
 UI/device behavior, desktop native images, Windows/macOS providers, real
 authorization or service indexing. Deployment and platform-runtime evidence are
