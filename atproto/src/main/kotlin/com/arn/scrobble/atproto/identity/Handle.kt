@@ -3,11 +3,24 @@ package com.arn.scrobble.atproto.identity
 import java.util.Locale
 
 internal fun normalizeHandle(value: String): String {
-    val handle = value.trim().removePrefix("@").lowercase(Locale.ROOT)
+    return parseHandle(value.trim().removePrefix("at://").removePrefix("@"))
+}
+
+/** Protocol claims are hostnames, not user-entered @aliases or whitespace. */
+internal fun parseHandle(value: String): String {
+    require(value.all { it.code < 128 }) { "AT Protocol handles must be ASCII" }
+    val handle = value.lowercase(Locale.ROOT)
     require(handle.length in 3..253) { "Invalid AT Protocol handle" }
     val labels = handle.split('.')
     require(labels.size >= 2 && labels.all(::isValidHandleLabel) && labels.last().first().isAsciiLetter()) {
         "Invalid AT Protocol handle"
+    }
+    return handle
+}
+
+internal fun requireResolvableHandle(handle: String): String {
+    require(handle.substringAfterLast('.') !in setOf("alt", "arpa", "example", "internal", "invalid", "local", "localhost", "onion", "test")) {
+        "AT Protocol handle uses a reserved top-level domain"
     }
     return handle
 }

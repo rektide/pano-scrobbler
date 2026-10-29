@@ -62,7 +62,7 @@ private class AccountFixture {
         val path = request.url.encodedPath
         val body = when {
             path.endsWith("resolveHandle") -> """{"did":"$did"}"""
-            request.url.host == "plc.directory" -> """{"id":"$did","alsoKnownAs":["at://alice.example"],"service":[{"id":"#atproto_pds","type":"AtprotoPersonalDataServer","serviceEndpoint":"https://pds.example"}]}"""
+            request.url.host == "plc.directory" -> """{"id":"$did","alsoKnownAs":["at://alice.example.com"],"service":[{"id":"#atproto_pds","type":"AtprotoPersonalDataServer","serviceEndpoint":"https://pds.example"}]}"""
             path.endsWith("oauth-protected-resource") -> """{"resource":"https://pds.example","authorization_servers":["https://pds.example"]}"""
             path.endsWith("oauth-authorization-server") -> """{"issuer":"https://pds.example","authorization_endpoint":"https://pds.example/authorize","token_endpoint":"https://pds.example/token","pushed_authorization_request_endpoint":"https://pds.example/par","response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"code_challenge_methods_supported":["S256"],"token_endpoint_auth_methods_supported":["none","private_key_jwt"],"token_endpoint_auth_signing_alg_values_supported":["ES256"],"scopes_supported":["atproto"],"dpop_signing_alg_values_supported":["ES256"],"authorization_response_iss_parameter_supported":true,"require_pushed_authorization_requests":true,"client_id_metadata_document_supported":true}"""
             path == "/par" -> {
@@ -85,7 +85,7 @@ private class AccountFixture {
     val authority = AtProtoAccountAuthority(store, OAuthClientConfig("https://client.example/metadata.json", "example.client:/callback", "atproto repo:fm.teal.feed.play?action=create"), { AtProtoHttpClientLease(client) {} })
     val accounts = PanoAtProtoAccounts(authority, prefs)
     suspend fun authorize() = authority.run {
-        beginAuthorization("alice.example")
+        beginAuthorization("alice.example.com")
         completeAuthorization("example.client:/callback?state=$state&code=fixture&iss=${URLEncoder.encode("https://pds.example", "UTF-8")}")
     }
 }
