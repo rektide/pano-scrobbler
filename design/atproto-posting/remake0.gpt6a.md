@@ -33,6 +33,10 @@ sources:
     title: Completed portable input, identity, discovery and record validation with exact adoption map
   - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/oauth0.gpt61s.md"
     title: Executable typed native OAuth and leased transport checkpoint with current integration obligations
+  - resource: "file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/native0.gpt61s.md"
+    title: Activated native provider/UI prefix, source stages, tests and remaining adoption work
+  - resource: "file:///home/rektide/src/pano-atproto-review/design/atproto-posting/lifecycle-review0.gpt61s.md"
+    title: Independent frozen-head lifecycle review with real hidden-replay and error-boundary findings
 ---
 
 # Clean Pano AT Protocol remake
@@ -45,10 +49,10 @@ and maintains readable tickets. The deliverable remains local, reviewable work
 and the knowledge needed to discuss and make PRs; the earlier boundary against
 automatic submission continues.
 
-Current coherent state: native storage and internal OAuth are executable; portable
-protocol corrections and independent metadata preparation are ready. Native
-account/provider/UI activation is the active implementation slice. A separate
-review examines the frozen internal lifecycle checkpoint while that work proceeds.
+Current coherent state: the native account/provider/UI path is implemented as a
+development preview. Final portable adoption and three concrete lifecycle review
+corrections are being integrated and qualified. Independent metadata preparation
+is complete locally; native device/runtime and deployment evidence remain separate.
 
 The previous [discussion brief](pr-brief0.gpt6a.md) explains the system and
 possible contributions. This commission advances from discussing those
@@ -135,9 +139,11 @@ directories with that explicit `BEADS_DIR`.
 | Owner | Scope | Session |
 |---|---|---|
 | Sol A, completed | Architecture and native storage foundation through `1e44bfac`; retired at 283,943 measured context tokens | `ses_e7b3d8e43ffeUWIng4yiONPAnf` |
-| Sol A2, active | Typed OAuth lifecycle and clean app integration; inherits the app workspace and owns `pano-atproto-remake-app-oauth` | `ses_e7b1c1da4ffeyw8XS4l257gfAC` |
+| Sol A2, completed | Typed OAuth and native feature prefix through `a38b6272`; retired at 307,727 measured context tokens | `ses_e7b1c1da4ffeyw8XS4l257gfAC` |
+| Sol A3, active | Final portable adoption, lifecycle review corrections and integrated feature qualification in the app workspace | `ses_e7aedded3ffe8r5OwrYTHwM2nl` |
 | Sol B, completed | Metadata preparation and reusable transport fixes through `f8d7b93e`; retired at 317,410 measured context tokens | `ses_e7b3ccec5ffeuJpOmxDoerRcX6` |
-| Sol B2, active | Completed portable validation through `1a0c119e`; now independently reviews frozen native OAuth head `def70d8a` | `ses_e7b181b8effef7JO12Vhel0XwH` |
+| Sol B2, completed | Portable validation through `1a0c119e` and independent lifecycle review through `78fff9d8`; retired at 282,508 measured context tokens | `ses_e7b181b8effef7JO12Vhel0XwH` |
+| Sol B3, active | Focused real-engine one-shot credential correction, independently carryable into the app | `ses_e7af14a6cffeDevLvL0joxsto6` |
 | Parent | Architectural decisions, cross-workspace integration, evidence synthesis and operator-facing explanation | `ses_e7ba46f7fffeze8ND55fl0uJF8` |
 
 Worker tickets carry scope and acceptance, append-only findings, exact heads and
@@ -255,6 +261,42 @@ B2 finished the portable slice at 195,558 measured context tokens and continues
 with a bounded independent review of frozen clean head `def70d8a`, rather than
 reading A2's active tree or padding the turnover budget. Already acknowledged
 provisional imports are distinct from defects in the new native composition.
+
+### Native feature preview and review corrections
+
+A2 delivered `a38b6272a06c806c6ad81c6ea02200a0fedd082e`: completed-play provider,
+durable partial-target progress, secret-free generation-fenced account projection,
+native browser/callback/paste UI, destination preferences, TV exclusion and hidden
+unsupported actions. The [native handoff](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/native0.gpt61s.md)
+reports 49 passing module tests, five passing AT Protocol app tests, full app
+11/12 with the known upstream YouTube-title failure, and successful Android debug
+assembly. Generated constants and the merged manifest were inspected. Final B2
+portable adoption remains an explicit successor obligation.
+
+The independent [frozen lifecycle review](file:///home/rektide/src/pano-atproto-review/design/atproto-posting/lifecycle-review0.gpt61s.md)
+at `78fff9d8`, examining `def70d8a`, established three corrective tasks:
+
+- **R3, P1:** actual OkHttp 5.5.0 resends a credential POST and identical DPoP
+  proof on `503` with `Retry-After: 0`, despite disabled connection retries.
+  B3 owns a focused engine-body replay correction and real-wire regression.
+- **R1, P2:** a malformed callback can put its code/state in a raw URI parser
+  exception chain. A3 owns sanitization at that untrusted-input boundary.
+- **R2, P2:** received HTTP errors can inconsistently quarantine a refresh,
+  including an actual body deadline after 503 headers. A3 owns consistent durable
+  classification followed by propagation of the original failure/cancellation.
+
+The review also proved generation fencing against an older in-flight exchange,
+stale-handle denial and safe use of new durable credentials after an error that
+occurred after atomic replacement. The six focused probes are observation/safety
+evidence, not a blanket conformance pass. The review ticket's closure means
+delivery, not feature approval.
+
+A2 and B2 turned over at 307,727 and 282,508 context tokens respectively. Fresh A3
+inherits the app and exact portable/review receipts; fresh B3 owns only the
+independent engine correction. A3's final composition must adopt that correction
+before readiness is claimed. Parent source review additionally asks UI tests to
+cover late global login-state outcomes, duplicate callback delivery and retained
+browser-launch effects alongside the already fenced credential generation.
 
 ## Consequential checkpoints
 

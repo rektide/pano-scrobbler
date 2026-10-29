@@ -41,6 +41,13 @@ sources:
 - [Executable native OAuth checkpoint](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/oauth0.gpt61s.md):
   typed lifecycle, durable error/rotation boundaries, leased real transport and
   remaining account/provider/UI integration.
+- [Native feature preview](file:///home/rektide/src/pano-atproto-remake/design/atproto-posting/native0.gpt61s.md):
+  provider, account/UI and manifest integration, actual checks and final portable
+  adoption obligations. Its concise [contributor guide](file:///home/rektide/src/pano-atproto-remake/doc/atproto.md)
+  explains the user flow, configuration and two PR outlines.
+- [Independent lifecycle review](file:///home/rektide/src/pano-atproto-review/design/atproto-posting/lifecycle-review0.gpt61s.md):
+  frozen-head evidence for engine replay, callback exception and received-error
+  corrections, plus successful generation/durable-publication counterexamples.
 
 ## Implemented architecture
 
