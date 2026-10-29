@@ -26,6 +26,16 @@ class IdentityRegressionTest {
     }
 
     @Test
+    fun `accepts standard DID JSON document media types`() = runTest {
+        for (type in listOf("application/json", "application/did+json", "application/did+ld+json")) {
+            val client = HttpClient(MockEngine {
+                respond(document(emptyList()), headers = headersOf(HttpHeaders.ContentType, type))
+            }) { followRedirects = false }
+            assertEquals(did, IdentityResolver(client).resolve(did).did)
+        }
+    }
+
+    @Test
     fun `first syntactically valid claim wins with ASCII case normalization`() = runTest {
         val aliases = listOf("https://other.example.com", "at://@wrong.example.com", "at://bad.example.com/", "at://Alice.BSKY.Social", "at://later.example.com")
         val resolver = IdentityResolver(client(document(aliases)))

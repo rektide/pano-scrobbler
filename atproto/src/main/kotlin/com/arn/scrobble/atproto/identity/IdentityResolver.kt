@@ -75,7 +75,7 @@ internal class IdentityResolver(
         }
         val element = httpClient.fetchJson(
             url = url,
-            acceptedTypes = setOf("application/json", "application/did+ld+json"),
+            acceptedTypes = setOf("application/json", "application/did+json", "application/did+ld+json"),
             maxBytes = 20 * 1024,
             json = json,
         )
