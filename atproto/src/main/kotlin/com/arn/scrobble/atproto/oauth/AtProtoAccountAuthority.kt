@@ -222,9 +222,9 @@ class AtProtoAccountAuthority internal constructor(
                 failure = error
                 when {
                     error.status == 400 && error.error == "invalid_grant" -> SessionUpdate.Remove
-                    error.status == 429 || error.status in 500..599 || (error.status in 400..499 && error.error != null) ->
+                    error.status in 400..599 ->
                         SessionUpdate.Replace(encode(working))
-                    else -> throw error // Unclassified/malformed response: consumption cannot be ruled out.
+                    else -> throw error // No received HTTP error proves non-consumption.
                 }
             } else {
                 require(response.status.value == 200) { "Invalid token response status" }
@@ -236,13 +236,20 @@ class AtProtoAccountAuthority internal constructor(
         failure?.let { throw it }
     }
 
-    private suspend fun formRequest(client: HttpClient, endpoint: String, key: P256PrivateJwk, nonces: DpopNonceStore, values: Map<String, String>): BufferedHttpResponse =
-        withTimeout(REQUEST_TIMEOUT_MILLIS) {
-            DpopHttp(client, DpopProofFactory(key, clock), nonces).request(endpoint, HttpMethod.Post, DpopServer.AUTHORIZATION) {
+    private suspend fun formRequest(client: HttpClient, endpoint: String, key: P256PrivateJwk, nonces: DpopNonceStore, values: Map<String, String>): BufferedHttpResponse {
+        var status: Int? = null
+        return try { withTimeout(REQUEST_TIMEOUT_MILLIS) {
+            DpopHttp(client, DpopProofFactory(key, clock), nonces).request(endpoint, HttpMethod.Post, DpopServer.AUTHORIZATION,
+                receivedStatus = { status = it }) {
                 contentType(ContentType.Application.FormUrlEncoded)
                 setBody(formEncode(values))
             }
+        } } catch (cause: CancellationException) {
+            // Outside withTimeout: preserve the original cancellation (and its attribution),
+            // but carry received headers to the rotating outcome classifier first.
+            throw status?.let { HttpResponseBodyException(it, cause) } ?: cause
         }
+    }
 
     private fun requireHandle(handle: SessionHandle) {
         if (handle.clientId != config.clientId) throw StaleSessionException()

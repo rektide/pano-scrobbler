@@ -2,6 +2,7 @@ package com.arn.scrobble.atproto.oauth
 
 import java.io.ByteArrayOutputStream
 import java.net.URI
+import java.net.URISyntaxException
 
 internal class NativeCallback private constructor(
     val state: String,
@@ -14,7 +15,11 @@ internal class NativeCallback private constructor(
     companion object {
         fun parse(url: String, expectedRedirect: String): NativeCallback {
             require(url.length <= 16 * 1024 && url.none { it.isWhitespace() || it.code < 0x20 }) { "Invalid OAuth callback URL" }
-            val uri = URI(url)
+            val uri = try { URI(url) } catch (_: URISyntaxException) {
+                // URI's exception message contains its entire input, including code/state.
+                // Do not retain that exception as a cause or suppressed exception.
+                throw IllegalArgumentException("Invalid OAuth callback URL")
+            }
             require(uri.rawFragment == null && url.substringBefore('?') == expectedRedirect) { "OAuth callback URL does not match the native redirect" }
             val values = linkedMapOf<String, String>()
             val query = requireNotNull(uri.rawQuery) { "OAuth callback is missing query parameters" }
