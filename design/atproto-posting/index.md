@@ -12,6 +12,8 @@ sources:
     title: Connect executable OAuth to activated native account/provider/UI integration, checks and fresh-worker handoff
   - resource: "opencode://ses_e7aedded3ffe8r5OwrYTHwM2nl"
     title: Connect portable adoption and review corrections to qualified native login and reference recovery
+  - resource: "opencode://ses_e7af14a6cffeDevLvL0joxsto6"
+    title: Connect the exact prospective combined integration assessment and its source-bound UI findings
   - resource: /design/atproto-posting/remake0.gpt61s.md
     title: Architecture proposal and current published-library qualification
   - resource: /design/atproto-posting/storage0.gpt61s.md
@@ -22,9 +24,18 @@ sources:
     title: Activated native integration, exact checks and remaining primitive qualification
   - resource: /design/atproto-posting/native1.gpt61s.md
     title: Adopted portable validation, R1/R2 dispositions, native qualification and outstanding real-engine receipt
+  - resource: /design/atproto-posting/final-review0.gpt61s.md
+    title: Independent review of native43065bf3 plus accepted one-shot transport delta, with exact candidate and qualification limits
 ---
 
 # Clean AT Protocol contribution reading map
+
+## Independent integration assessment
+
+- [Final prospective integration review](final-review0.gpt61s.md): exact combined
+  candidate `97db5e70`, not A3's future working tree. Credential corrections
+  compose; three P2 login/preference action findings require explicit disposition.
+  Review probes and platform/deployment limits are separate from feature acceptance.
 
 ## Current implementation
 
