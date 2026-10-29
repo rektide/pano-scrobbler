@@ -65,7 +65,11 @@ internal object PanoAtProto {
         }
     }
 
-    fun resetLoginResult() { mutableLogin.value = LoginState() }
+    /** Navigation transitions may briefly retain two screens; only one consumes this completion. */
+    fun consumeCompleted(handle: SessionHandle): Boolean {
+        val state = mutableLogin.value
+        return state.completed?.session == handle && mutableLogin.compareAndSet(state, LoginState())
+    }
 
     suspend fun select(handle: SessionHandle, target: AtProtoTarget, enabled: Boolean) = authority.publishAccount(handle) { current ->
         require(!enabled || target in AtProtoTarget.grantedBy(current.grantedScopes)) { "Target not granted" }
