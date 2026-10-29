@@ -2,6 +2,9 @@ package com.arn.scrobble.atproto.http
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.plugins.HttpRedirect
+import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.pluginOrNull
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.statement.bodyAsChannel
@@ -23,7 +26,11 @@ internal suspend fun HttpClient.boundedRequest(
     maxBytes: Int,
     onHeaders: (HttpStatusCode, Headers) -> Unit = { _, _ -> },
     configure: HttpRequestBuilder.() -> Unit,
-): BufferedHttpResponse = prepareRequest {
+): BufferedHttpResponse {
+    require(pluginOrNull(HttpRedirect) == null && pluginOrNull(HttpRequestRetry) == null) {
+        "AT Protocol transport must disable redirects and automatic retries"
+    }
+    return prepareRequest {
     expectSuccess = false
     configure()
 }.execute { response ->
@@ -47,4 +54,5 @@ internal suspend fun HttpClient.boundedRequest(
     } catch (cause: Exception) {
         throw HttpResponseBodyException(response.status.value, cause)
     }
+}
 }

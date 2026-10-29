@@ -9,6 +9,7 @@ import com.arn.scrobble.atproto.http.DpopNonceStore
 import com.arn.scrobble.atproto.http.DpopNonceException
 import com.arn.scrobble.atproto.http.DpopServer
 import com.arn.scrobble.atproto.http.HttpResponseBodyException
+import com.arn.scrobble.atproto.http.hasDpopError
 import com.arn.scrobble.atproto.storage.AtProtoAccountStore
 import com.arn.scrobble.atproto.storage.SessionHandle
 import com.arn.scrobble.atproto.storage.SessionSnapshot
@@ -110,26 +111,35 @@ class AtProtoAccountAuthority internal constructor(
     }
 
     /** Narrow completed-record operation, not a general credential-bearing fetch API. */
-    suspend fun createRecord(handle: SessionHandle, collection: String, record: JsonObject): JsonObject = store.withSession(handle) {
+    suspend fun createRecord(handle: SessionHandle, collection: String, record: JsonObject): CreatedRecord = store.withSession(handle) {
         requireHandle(handle)
+        require(collection == "fm.teal.feed.play" || collection == "app.rocksky.scrobble") { "Unsupported completed-play collection" }
+        require(record["\$type"]?.jsonPrimitive?.content == collection) { "Record type does not match its collection" }
+        val body = json.encodeToString(CreateRecordRequest(handle.did, collection, record))
+        require(body.toByteArray(Charsets.UTF_8).size <= 64 * 1024) { "Completed-play request is too large" }
         withClient { client ->
             refreshIfNeeded(handle, client)
+            var result: CreatedRecord? = null
+            for (attempt in 0..1) {
             var current = decodeSession(credentials, handle)
             require("repo:$collection?action=create" in current.token.scope.split(' ')) { "Record collection was not granted" }
-            require(collection == "fm.teal.feed.play" || collection == "app.rocksky.scrobble") { "Unsupported completed-play collection" }
             val nonces = DpopNonceStore(current.nonces) { values ->
                 current = current.copy(nonces = values)
                 replace(encode(current))
             }
-            val body = json.encodeToString(CreateRecordRequest(handle.did, collection, record))
             val response = withTimeout(REQUEST_TIMEOUT_MILLIS) {
                 DpopHttp(client, DpopProofFactory(current.dpopKey, clock), nonces).request(
                     current.pds + "/xrpc/com.atproto.repo.createRecord", HttpMethod.Post, DpopServer.RESOURCE, current.token.accessToken,
                 ) { contentType(ContentType.Application.Json); setBody(body) }
             }
-            // No blind replay on invalid_token: refresh/retry belongs to a proved non-consuming boundary.
-            // This operation returns errors to the pending-play caller; ordinary failure never marks rotation.
-            response.decode<JsonObject>()
+            if (attempt == 0 && response.status.value == 401 && response.headers.hasDpopError("invalid_token")) {
+                refreshIfNeeded(handle, client, force = true)
+                continue
+            }
+            result = response.decode<CreatedRecord>().also { it.validate(handle.did, collection) }
+            break
+            }
+            requireNotNull(result)
         }
     }
 
@@ -149,9 +159,10 @@ class AtProtoAccountAuthority internal constructor(
         }
     }
 
-    private suspend fun AtProtoAccountStore.SessionOperation.refreshIfNeeded(handle: SessionHandle, client: HttpClient) {
+    private suspend fun AtProtoAccountStore.SessionOperation.refreshIfNeeded(handle: SessionHandle, client: HttpClient, force: Boolean = false) {
         val current = decodeSession(credentials, handle)
-        if (current.token.expiresAt - clock.millis() > 60_000) return
+        // Missing expires_in means unknown, not forever-valid. Use it until a proved invalid_token rejection.
+        if (!force && (current.token.expiresAt == null || current.token.expiresAt - clock.millis() > 60_000)) return
         val refreshToken = current.token.refreshToken ?: throw AtProtoOAuthException("Authorization has no refresh token; sign in again")
         // Discovery is not token-consuming: failure must not quarantine a valid rotating credential.
         val verified = withTimeout(REQUEST_TIMEOUT_MILLIS) { OAuthDiscovery(client).resolve(handle.did) }
@@ -241,3 +252,16 @@ private data class ParResponse(@SerialName("request_uri") val requestUri: String
 
 @Serializable
 private data class CreateRecordRequest(val repo: String, val collection: String, val record: JsonObject)
+
+@Serializable
+data class CreatedRecord(val uri: String, val cid: String) {
+    internal fun validate(did: String, collection: String) {
+        val prefix = "at://$did/$collection/"
+        require(uri.startsWith(prefix)) { "PDS returned a different record location" }
+        val key = uri.removePrefix(prefix)
+        require(key.length in 1..512 && key != "." && key != ".." && key.all { it.isLetterOrDigit() && it.code < 128 || it in "._~:-" }) {
+            "PDS returned an invalid record key"
+        }
+        require(cid.matches(Regex("bafyrei[a-z2-7]{52}"))) { "PDS returned an invalid DAG-CBOR CID shape" }
+    }
+}

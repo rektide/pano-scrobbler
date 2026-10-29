@@ -10,6 +10,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.net.URI
 
 internal enum class DpopServer { AUTHORIZATION, RESOURCE }
 
@@ -42,12 +43,15 @@ internal class DpopHttp(
         accessToken: String? = null,
         configure: HttpRequestBuilder.() -> Unit = {},
     ): BufferedHttpResponse {
+        require(URI(url).scheme == "https" && URI(url).rawFragment == null) { "DPoP requests require HTTPS without a fragment" }
         repeat(2) { attempt ->
             val nonce = nonces.get(server, url)
             val proof = proofFactory.create(method.value, url, nonce, accessToken)
             val response = httpClient.boundedRequest(64 * 1024, onHeaders = { status, headers ->
                 val received = headers.getAll("DPoP-Nonce")
-                if (received?.size != 1 || received.single().isBlank() || received.single().length > 2048)
+                if (received?.size != 1 || received.single().length !in 1..4096 || received.single().any {
+                        it != '\u0021' && it !in '\u0023'..'\u005B' && it !in '\u005D'..'\u007E'
+                    })
                     throw DpopNonceException(status.value)
                 nonces.set(server, url, received.single())
             }) {
@@ -69,6 +73,5 @@ private fun BufferedHttpResponse.isNonceChallenge(server: DpopServer): Boolean =
     DpopServer.AUTHORIZATION -> status.value == 400 && runCatching {
         Json.parseToJsonElement(body).jsonObject["error"]?.jsonPrimitive?.contentOrNull
     }.getOrNull() == "use_dpop_nonce"
-    DpopServer.RESOURCE -> status.value == 401 && headers[HttpHeaders.WWWAuthenticate]
-        ?.matches(Regex("(?i)DPoP\\s+.*\\berror=\"use_dpop_nonce\"(?:\\s*,.*)?")) == true
+    DpopServer.RESOURCE -> status.value == 401 && headers.hasDpopError("use_dpop_nonce")
 }

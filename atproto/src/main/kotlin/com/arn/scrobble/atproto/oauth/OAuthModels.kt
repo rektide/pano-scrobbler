@@ -64,7 +64,7 @@ internal data class StoredSession(
 }
 
 @Serializable
-internal data class AtProtoToken(val accessToken: String, val refreshToken: String?, val scope: String, val expiresAt: Long) {
+internal data class AtProtoToken(val accessToken: String, val refreshToken: String?, val scope: String, val expiresAt: Long?) {
     override fun toString() = "AtProtoToken(<redacted>)"
 }
 
@@ -73,7 +73,7 @@ internal data class TokenResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("token_type") val tokenType: String,
-    @SerialName("expires_in") val expiresIn: Long,
+    @SerialName("expires_in") val expiresIn: Long? = null,
     val scope: String,
     @SerialName("sub") val subject: String,
 ) {
@@ -82,11 +82,11 @@ internal data class TokenResponse(
         require(tokenType.equals("DPoP", ignoreCase = true)) { "Token response is not DPoP-bound" }
         require(accessToken.isNotBlank() && accessToken.all { it.code in 0x21..0x7e }) { "Invalid access token" }
         require(refreshToken == null || refreshToken.isNotBlank()) { "Invalid refresh token" }
-        require(expiresIn > 0 && now >= 0 && expiresIn <= (Long.MAX_VALUE - now) / 1000) { "Invalid token expiry" }
+        require(now >= 0 && (expiresIn == null || (expiresIn > 0 && expiresIn <= (Long.MAX_VALUE - now) / 1000))) { "Invalid token expiry" }
         val scopes = scope.split(' ')
         require(scopes.all { it.isNotEmpty() && it.all { char -> char.code == 0x21 || char.code in 0x23..0x5b || char.code in 0x5d..0x7e } } &&
             "atproto" in scopes && scopes.size == scopes.distinct().size) { "Invalid granted OAuth scope" }
-        return AtProtoToken(accessToken, refreshToken ?: previousRefreshToken, scope, now + expiresIn * 1000)
+        return AtProtoToken(accessToken, refreshToken ?: previousRefreshToken, scope, expiresIn?.let { now + it * 1000 })
     }
 
     override fun toString() = "TokenResponse(<redacted>)"
