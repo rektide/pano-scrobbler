@@ -34,7 +34,9 @@ fun AtProtoLoginScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
         catch (cause: CancellationException) { throw cause }
         catch (_: Exception) { targetError = true }
     }
-    LaunchedEffect(state.launch) { state.launch?.let { PlatformStuff.openInBrowser(it.authorizationUrl) } }
+    LaunchedEffect(state.launch) { state.launch?.let {
+        if (PanoAtProto.consumeBrowserLaunch(it)) PlatformStuff.openInBrowser(it.authorizationUrl)
+    } }
     LaunchedEffect(state.completed) {
         state.completed?.let { if (PanoAtProto.consumeCompleted(it.session)) onDone() }
     }
