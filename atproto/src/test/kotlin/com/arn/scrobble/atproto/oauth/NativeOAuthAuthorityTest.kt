@@ -53,6 +53,7 @@ private const val REDIRECT = "example.client:/pano-scrobbler/oauth/callback"
 private const val DID = "did:plc:abcdefghijklmnopqrstuvwx"
 private const val SCOPE = "atproto repo:fm.teal.feed.play?action=create repo:app.rocksky.scrobble?action=create"
 private val config = OAuthClientConfig(CLIENT, REDIRECT, SCOPE)
+private fun record(collection: String = "fm.teal.feed.play") = buildJsonObject { put("\$type", collection) }
 
 private class Fixture {
     val root: File = Files.createTempDirectory(File(System.getProperty("pano.test.directory")).also { it.mkdirs() }.toPath(), "oauth-").toFile()
@@ -88,7 +89,8 @@ private class Fixture {
             }
             url.endsWith("/xrpc/com.atproto.repo.createRecord") -> {
                 resourceRequests++
-                json("""{"uri":"at://$DID/fm.teal.feed.play/fixture","cid":"fixture"}""", nonce = "resource-$resourceRequests")
+                val collection = Json.parseToJsonElement((request.body as TextContent).text).jsonObject.getValue("collection").jsonPrimitive.content
+                json("""{"uri":"at://$DID/$collection/fixture","cid":"bafyrei${"a".repeat(52)}"}""", nonce = "resource-$resourceRequests")
             }
             else -> error("Unexpected fixture URL: $url")
         }
@@ -143,6 +145,89 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun onlyExactInvalidTokenChallengeForcesRefreshAndOneSafeRetryEvenWithUnknownExpiry(): Unit = runBlocking {
+        for (challenge in listOf(null, "Bearer error=\"invalid_token\"", "DPoPish error=\"invalid_token\"",
+            "DPoP error=\"INVALID_TOKEN\"", "DPoP realm=\"error=invalid_token\"",
+            "DPoP error=invalid_token, error=invalid_token", "Basic realm=\"a,b\", dPoP ErRoR=invalid_token")) {
+            val f = Fixture()
+            f.tokenMutation = { JsonObject(it - "expires_in") }
+            val account = f.login()
+            var calls = 0
+            f.intercept = { request ->
+                if (request.url.encodedPath.endsWith("createRecord")) {
+                    calls++
+                    if (calls == 1) respond("{}", HttpStatusCode.Unauthorized, headersOf(*buildList {
+                        add("DPoP-Nonce" to listOf("resource-rejected"))
+                        challenge?.let { add("WWW-Authenticate" to listOf(it)) }
+                    }.toTypedArray())) else {
+                        assertEquals("DPoP access-2", request.headers[HttpHeaders.Authorization])
+                        null
+                    }
+                } else null
+            }
+            if (challenge?.startsWith("Basic") == true) {
+                f.authority().createRecord(account.session, "fm.teal.feed.play", record())
+                assertEquals(2, calls)
+                assertEquals(2, f.tokenRequests)
+            } else {
+                assertFailsWith<OAuthResponseException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
+                assertEquals(1, calls)
+                assertEquals(1, f.tokenRequests)
+            }
+        }
+    }
+
+    @Test fun forcedRefreshNarrowingAndRepeatedInvalidTokenCannotReplayAWriteIndefinitely(): Unit = runBlocking {
+        for (narrow in listOf(true, false)) {
+            val f = Fixture()
+            val account = f.login()
+            if (narrow) f.tokenScope = "atproto"
+            var calls = 0
+            f.intercept = { request ->
+                if (request.url.encodedPath.endsWith("createRecord")) {
+                    calls++
+                    respond("{}", HttpStatusCode.Unauthorized, headersOf("DPoP-Nonce" to listOf("n"),
+                        "WWW-Authenticate" to listOf("DPoP error=invalid_token")))
+                } else null
+            }
+            if (narrow) assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
+            else assertFailsWith<OAuthResponseException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
+            assertEquals(if (narrow) 1 else 2, calls)
+            assertEquals(2, f.tokenRequests)
+        }
+    }
+
+    @Test fun recordRequestAndResultBoundariesRejectMismatchesAndOversizedJson(): Unit = runBlocking {
+        val f = Fixture()
+        val account = f.login()
+        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record("app.rocksky.scrobble")) }
+        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {
+            put("\$type", "fm.teal.feed.play"); put("large", "x".repeat(65_536))
+        }) }
+        assertEquals(0, f.resourceRequests)
+        for ((uri, cid) in listOf("at://$DID/app.rocksky.scrobble/key" to "bafyrei${"a".repeat(52)}",
+            "at://$DID/fm.teal.feed.play/../extra" to "bafyrei${"a".repeat(52)}",
+            "at://$DID/fm.teal.feed.play/key" to "not-a-cid")) {
+            f.intercept = { request ->
+                if (request.url.encodedPath.endsWith("createRecord")) json("""{"uri":"$uri","cid":"$cid"}""", nonce = "n") else null
+            }
+            assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
+        }
+        assertEquals(account, f.authority().currentAccount())
+    }
+
+    @Test fun noncesRejectDuplicatesSpacesQuotesBackslashUnicodeAndControls(): Unit = runBlocking {
+        for (values in listOf(emptyList(), listOf("a", "b"), listOf(""), listOf("a b"), listOf("a\"b"), listOf("a\\b"), listOf("é"))) {
+            val f = Fixture()
+            f.intercept = { request ->
+                if (request.url.encodedPath == "/oauth/par") respond("{}", HttpStatusCode.Created,
+                    headersOf("DPoP-Nonce" to values)) else null
+            }
+            assertFailsWith<DpopNonceException> { f.authority().beginAuthorization("alice.example") }
+            assertNull(f.authority().currentAccount())
+        }
+    }
+
     @Test fun boundedErrorBodyFailureRetainsRefreshWhileOversizedSuccessIsQuarantined(): Unit = runBlocking {
         for (status in listOf(200, 503)) {
             val f = Fixture()
@@ -261,8 +346,8 @@ class NativeOAuthAuthorityTest {
                 }
             } else null
         }
-        f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {})
-        f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {})
+        f.authority().createRecord(account.session, "fm.teal.feed.play", record())
+        f.authority().createRecord(account.session, "fm.teal.feed.play", record())
         assertEquals(3, calls)
         assertEquals(1, f.tokenRequests)
     }
@@ -274,9 +359,9 @@ class NativeOAuthAuthorityTest {
         f.tokenScope = "atproto repo:app.rocksky.scrobble?action=create"
         val current = f.authority().refresh(account.session)
         assertEquals(setOf("atproto", "repo:app.rocksky.scrobble?action=create"), current.grantedScopes)
-        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {}) }
+        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
         assertEquals(0, f.resourceRequests)
-        f.authority().createRecord(account.session, "app.rocksky.scrobble", buildJsonObject {})
+        f.authority().createRecord(account.session, "app.rocksky.scrobble", record("app.rocksky.scrobble"))
         assertEquals(1, f.resourceRequests)
     }
 
@@ -351,7 +436,7 @@ class NativeOAuthAuthorityTest {
 
     @Test fun invalidTokenPropertiesNeverPublishAnAccount(): Unit = runBlocking {
         val mutations: List<(JsonObject) -> JsonObject> = listOf(
-            { JsonObject(it - "sub") }, { JsonObject(it - "scope") }, { JsonObject(it - "expires_in") },
+            { JsonObject(it - "sub") }, { JsonObject(it - "scope") },
             { JsonObject(it + ("token_type" to Json.parseToJsonElement("\"Bearer\""))) },
             { JsonObject(it + ("sub" to Json.parseToJsonElement("\"did:plc:zzzzzzzzzzzzzzzzzzzzzzzz\""))) },
             { JsonObject(it + ("scope" to Json.parseToJsonElement("\"repo:fm.teal.feed.play?action=create\""))) },
@@ -521,7 +606,7 @@ class NativeOAuthAuthorityTest {
                 json("""{"error":"RateLimitExceeded"}""", 429, "resource-error")
             } else null
         }
-        assertFailsWith<OAuthResponseException> { f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {}) }
+        assertFailsWith<OAuthResponseException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
         assertEquals(account, f.authority().currentAccount())
         f.intercept = { request ->
             if (request.url.encodedPath.endsWith("createRecord")) {
@@ -529,10 +614,10 @@ class NativeOAuthAuthorityTest {
                 throw IOException("ordinary request connection lost")
             } else null
         }
-        assertFailsWith<IOException> { f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {}) }
+        assertFailsWith<IOException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
         assertEquals(account, f.authority().currentAccount())
-        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "app.rocksky.scrobble", buildJsonObject {}) }
+        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "app.rocksky.scrobble", record("app.rocksky.scrobble")) }
         f.authority().logout()
-        assertFailsWith<StaleSessionException> { f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {}) }
+        assertFailsWith<StaleSessionException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
     }
 }
