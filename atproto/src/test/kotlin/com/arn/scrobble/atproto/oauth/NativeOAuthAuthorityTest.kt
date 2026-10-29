@@ -149,6 +149,38 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun browserCorrelationIsReadOnlyClientAttemptAndExpiryBoundAcrossNativeAuthorities(): Unit = runBlocking {
+        val f = Fixture()
+        try {
+            val authority = f.authority()
+            val first = authority.beginAuthorization("alice.example.com")
+            assertTrue(f.authority().isAuthorizationPending(first))
+            assertTrue(f.authority().isAuthorizationPending(first)) // Reads do not claim or consume.
+            val other = config.copy(clientId = "https://other.example/metadata.json", redirectUri = "example.other:/callback")
+            assertFalse(f.authority(selected = other).isAuthorizationPending(first))
+            f.store().reserveAuthorization(CLIENT) // An in-flight newer PAR already invalidates it.
+            assertFalse(authority.isAuthorizationPending(first))
+            val second = authority.beginAuthorization("alice.example.com")
+            assertFalse(authority.isAuthorizationPending(first))
+            assertTrue(authority.isAuthorizationPending(second))
+            val account = authority.completeAuthorization(f.callback())
+            assertFalse(authority.isAuthorizationPending(second))
+            val third = authority.beginAuthorization("alice.example.com")
+            authority.removeAccount(account.session.copy(generation = "stale"))
+            assertTrue(authority.isAuthorizationPending(third))
+            f.now = third.expiresAt
+            assertFalse(f.authority().isAuthorizationPending(third))
+            f.now--
+            assertTrue(authority.isAuthorizationPending(third)) // Expiry read did not mutate native state.
+            authority.removeAccount(account.session)
+            assertFalse(authority.isAuthorizationPending(third))
+            val fourth = authority.beginAuthorization("alice.example.com")
+            authority.logout()
+            assertFalse(authority.isAuthorizationPending(fourth))
+            assertEquals(1, f.tokenRequests)
+        } finally { f.client.close() }
+    }
+
     @Test fun recordResultParsesCanonicalCidProfileWithoutClaimingContentVerification() {
         val uri = "at://$DID/fm.teal.feed.play/key"
         val valid = "bafyrei${"a".repeat(52)}"

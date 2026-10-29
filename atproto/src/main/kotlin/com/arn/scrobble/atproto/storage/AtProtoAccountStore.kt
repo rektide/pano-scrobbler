@@ -15,6 +15,7 @@ import java.util.UUID
 @Serializable
 data class SessionHandle(val clientId: String, val did: String, val generation: String)
 
+/** Opaque correlation for the reservation and its published pending authorization, never a claim. */
 class AuthorizationAttempt internal constructor(val clientId: String, internal val generation: String)
 
 /** Opaque protocol payloads are encoded by the OAuth owner, not interpreted by storage. */
@@ -73,10 +74,16 @@ class AtProtoAccountStore(
         require(did.startsWith("did:") && state.isNotBlank())
         val vault = read()
         val client = vault.clients[attempt.clientId] ?: throw StaleAuthorizationException()
-        if (client.attempt != attempt.generation) throw StaleAuthorizationException()
+        if (client.attempt != attempt.generation || client.pending != null) throw StaleAuthorizationException()
         save(vault.withClient(attempt.clientId, client.copy(
-            pending = PendingState(did, state, expiresAt, authorization), attempt = null,
+            pending = PendingState(did, state, expiresAt, authorization),
         )))
+    }
+
+    /** Read-only command correlation, not permission to consume or complete an authorization. */
+    internal suspend fun isAuthorizationPending(attempt: AuthorizationAttempt, now: Long): Boolean = locked {
+        val client = read().clients[attempt.clientId]
+        client?.attempt == attempt.generation && client.pending?.let { now < it.expiresAt } == true
     }
 
     suspend fun beginAuthorization(

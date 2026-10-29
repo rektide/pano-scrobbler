@@ -204,7 +204,7 @@ object Scrobblables {
 
     suspend fun deleteAllByType(type: AccountType) {
         if (type == AccountType.ATPROTO) {
-            com.arn.scrobble.api.atproto.PanoAtProto.accounts.logout()
+            com.arn.scrobble.api.atproto.PanoAtProto.logout()
             return
         }
         PlatformStuff.mainPrefs.updateData {

@@ -43,6 +43,16 @@ internal class PanoAtProtoAccounts(
         Unit
     }
 
+    suspend fun setEnabled(reference: UserAccountSerializable, enabled: Boolean) {
+        require(reference.type == AccountType.ATPROTO)
+        val handle = requireNotNull(reference.atProtoSession) { "Sign in again before enabling this account" }
+        authority.publishAccount(handle) {
+            prefs.updateData { current -> current.copy(scrobbleAccounts = current.scrobbleAccounts.map {
+                if (it.type == AccountType.ATPROTO && it.atProtoSession == handle) it.copy(canScrobble = enabled) else it
+            }) }
+        }
+    }
+
     suspend fun logout() = authority.logout {
         prefs.updateData { current ->
             val remaining = current.scrobbleAccounts.filterNot { it.type == AccountType.ATPROTO }
