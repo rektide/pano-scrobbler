@@ -10,6 +10,7 @@ import com.arn.scrobble.atproto.http.DpopNonceException
 import com.arn.scrobble.atproto.http.DpopServer
 import com.arn.scrobble.atproto.http.HttpResponseBodyException
 import com.arn.scrobble.atproto.http.hasDpopError
+import com.arn.scrobble.atproto.posting.AtProtoTarget
 import com.arn.scrobble.atproto.storage.AtProtoAccountStore
 import com.arn.scrobble.atproto.storage.SessionHandle
 import com.arn.scrobble.atproto.storage.SessionSnapshot
@@ -152,7 +153,7 @@ class AtProtoAccountAuthority internal constructor(
             var result: CreatedRecord? = null
             for (attempt in 0..1) {
             var current = decodeSession(credentials, handle)
-            require("repo:$collection?action=create" in current.token.scope.split(' ')) { "Record collection was not granted" }
+            require(AtProtoTarget.grantedBy(current.token.scope).any { it.collection == collection }) { "Record collection was not granted" }
             val nonces = DpopNonceStore(current.nonces) { values ->
                 current = current.copy(nonces = values)
                 replace(encode(current))

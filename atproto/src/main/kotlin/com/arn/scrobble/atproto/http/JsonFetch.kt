@@ -8,6 +8,7 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 internal suspend fun HttpClient.fetchJson(
     url: String,
@@ -24,5 +25,8 @@ internal suspend fun HttpClient.fetchJson(
     require(response.headers["Content-Type"]?.substringBefore(';')?.trim()?.lowercase() in acceptedTypes) {
         "AT Protocol discovery returned an unsupported content type"
     }
-    return json.parseToJsonElement(response.body)
+    requireUnambiguousDiscoveryJson(response.body)
+    return json.parseToJsonElement(response.body).also {
+        require(it is JsonObject) { "AT Protocol discovery must return a JSON object" }
+    }
 }
