@@ -14,6 +14,8 @@ sources:
     title: Connect portable adoption, all three review corrections and the final integrated host/native feature receipt
   - resource: "opencode://ses_e7ac533aeffebK2LtBfRou0pzm"
     title: Connect the final UI ownership, browser invalidation/expiry, action error and timeout correction receipt to the integrated predecessor
+  - resource: "opencode://ses_e7af14a6cffeDevLvL0joxsto6"
+    title: Connect the independent exact UI correction assessment and resolved findings with their unchanged qualification limits
   - resource: /design/atproto-posting/remake0.gpt61s.md
     title: Architecture proposal and current published-library qualification
   - resource: /design/atproto-posting/storage0.gpt61s.md
@@ -28,9 +30,18 @@ sources:
     title: Final exact R3 adoption, one-use browser launch correction and integrated qualification boundaries
   - resource: /design/atproto-posting/ui-corrections0.gpt61s.md
     title: Exact F1/F2/F3 and timeout correction delta, positive controller/native-vault/action regressions and qualification boundaries
+  - resource: /design/atproto-posting/ui-review0.gpt61s.md
+    title: Independent exact-delta assessment resolving F1/F2/F3 and cancellation cleanup without recertifying runtime/deployment gates
 ---
 
 # Clean AT Protocol contribution reading map
+
+## Independent correction assessment
+
+- [Final UI delta assessment](ui-review0.gpt61s.md): F1/F2/F3 and current-work
+  cancellation resolved on pinned code `18da8b91` and guide `a17414ed`; no remaining
+  substantiated local blocker found. Runtime/deployment and final tree equality
+  remain separate from this source-bound verdict.
 
 ## Current implementation
 
