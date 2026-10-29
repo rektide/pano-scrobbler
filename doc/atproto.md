@@ -9,7 +9,9 @@ sources:
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
     title: Implemented and tested the native account/provider/UI prefix and recorded its remaining qualification gates
   - resource: "opencode://ses_e7aedded3ffe8r5OwrYTHwM2nl"
-    title: Integrated portable validation, corrected callback and refresh failure handling, and qualified native login and reference recovery
+    title: Integrated portable validation and one-shot transport, corrected lifecycle failures, and qualified native login and reference recovery through host tests and Android builds
+  - resource: "opencode://ses_e7af14a6cffeDevLvL0joxsto6"
+    title: Implemented the public one-shot OkHttp body policy and real-wire replay, nonce retry and proxy CONNECT regressions
   - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/PanoAtProto.kt
     title: Shared native authority and client identity
   - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/onboarding/AtProtoLoginScreen.kt
@@ -22,14 +24,23 @@ sources:
     title: Actual-vault application qualification with synthetic HTTP and preference failures
   - resource: /atproto/src/main/kotlin/com/arn/scrobble/atproto/posting/Records.kt
     title: Separate bounded Teal and Rocksky record mapping and duration units
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/AtProtoTransport.kt
+    title: Dedicated redirect-free transport and transparent one-shot body policy
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoTransportReplayTest.kt
+    title: Real HTTP 503 and 408 POST delivery without hidden replay or response rewriting
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoProtocolTransportTest.kt
+    title: Real native protocol adapter retains bounded nonce retry with fresh proofs
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoProxyTransportTest.kt
+    title: HTTPS proxy CONNECT authentication precedes TLS and origin credentials
 ---
 
 # Native AT Protocol scrobbling
 
 **Development preview:** native login and completed-play delivery are implemented,
 including strict key, identity, discovery, permission and record validation.
-A real-engine HTTP 503 follow-up replay correction is still pending at this
-checkpoint; it is not release-ready. No real-account or device validation is claimed.
+Protocol and native app integration are qualified through synthetic host tests and
+Android debug builds. This is **not** Android runtime, device or real-account
+certification; those release gates remain separate.
 
 ## Use
 
@@ -37,6 +48,10 @@ Choose **AT Protocol (Rocksky / Teal)** in onboarding or service preferences.
 Enter a handle or DID and approve in your external browser. Android receives the
 native callback; desktop users can paste the **complete callback URL** into the
 login screen. Never share that URL or put it in a bug report.
+
+Automatic browser opening is claimed once per launch. Returning to the login
+screen does not automatically reopen an earlier approval request; the waiting
+screen retains a button for explicit browser reopening.
 
 Pano keeps one AT Protocol account. Reauthorization replaces its login generation;
 same-account destination choices and its enabled/disabled setting are preserved.
@@ -105,6 +120,13 @@ Android encrypts the no-backup vault with a Keystore key. Desktop storage is
 owner-private **plaintext**, not an OS keychain. Supported-platform runtime
 qualification remains separate from source inspection and host tests.
 
+The dedicated client retains Pano's normal TLS, proxy, user-agent and timeout
+policy. Current credential-bearing POST bodies are one-shot at the real OkHttp
+boundary, preventing hidden follow-up replay (including HTTP 503 with
+`Retry-After: 0`) without buffering or rewriting responses. Explicit protocol
+nonce retries construct a new request and fresh proof. This is not a general
+one-attempt guarantee for arbitrary bodyless GETs, future middleware or engines.
+
 Requests use fresh generation-scoped credentials under the OS lock. A rotating
 refresh is durably finished before releasing it; ambiguous response/persistence
 loss quarantines the old credential rather than replaying it. `expires_in` may
@@ -142,22 +164,21 @@ bash gradlew :atproto:test :composeApp:jvmTest \
   --tests 'com.arn.scrobble.api.atproto.*' :androidApp:assembleDebug
 ```
 
-The checked native prefix passes **96 module tests and 14 AT Protocol app tests**;
-Android debug APK assembly succeeds. The full app suite is **20/21 passing**:
+The checked native prefix passes **96 module tests and 20 AT Protocol app tests**;
+Android debug APK assembly succeeds. The full app suite is **26/27 passing**:
 only the known `MaiTest.parseYoutubeTitles` upstream trailing-space assertion fails.
 The `--continue` command therefore exits nonzero despite completing APK assembly.
 Host tests/builds do not qualify Android Keystore/API 24/25 runtime, interactive
 UI/device behavior, desktop native images, Windows/macOS providers, real
-authorization or service indexing. Resolve the outstanding engine replay gate
-before treating these local results as a release candidate.
+authorization or service indexing. Deployment and platform-runtime evidence are
+still needed before treating these local results as release qualification.
 
 1. **Application PR:** one public-dependency `:atproto` implementation, native
    vault/transport, account/provider/UI integration, tests and this guide. Explain
    completed-only capabilities, credential ownership, grant selection and retry
-    limitations. Resolve the real-engine replay correction and retain its wire
-    regression before calling this release-ready. Exclude private configuration,
-    credentials and local research/probes; this guide's source links refer only to
-    feature files included in that PR.
+   limitations and the one-shot engine boundary with its real-wire regressions.
+   Exclude private configuration, credentials and local research/probes; this
+   guide's source links refer only to feature files included in that PR.
 2. **Metadata/Pages PR:** public native OAuth metadata JSON and deterministic Pages
    artifact inclusion only. Match the client/callback/scope above; explain that
    deployment precedes production login. Keep operator runbooks/research separate
