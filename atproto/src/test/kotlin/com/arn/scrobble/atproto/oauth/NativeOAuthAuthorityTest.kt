@@ -78,7 +78,7 @@ private class Fixture {
         intercept?.invoke(this, request)?.let { return@MockEngine it }
         when {
             url.contains("/xrpc/com.atproto.identity.resolveHandle") -> json("""{"did":"$subject"}""")
-            url.startsWith("https://plc.directory/") -> json("""{"id":"$subject","alsoKnownAs":["at://alice.example"],"service":[{"id":"#atproto_pds","type":"AtprotoPersonalDataServer","serviceEndpoint":"$pds"}]}""")
+            url.startsWith("https://plc.directory/") -> json("""{"id":"$subject","alsoKnownAs":["at://alice.example.com"],"service":[{"id":"#atproto_pds","type":"AtprotoPersonalDataServer","serviceEndpoint":"$pds"}]}""")
             url.endsWith("/.well-known/oauth-protected-resource") -> json("""{"resource":"$pds","authorization_servers":["https://as.example"]}""")
             url == "https://as.example/.well-known/oauth-authorization-server" -> json(SERVER)
             url == "https://as.example/oauth/par" -> {
@@ -105,7 +105,7 @@ private class Fixture {
     fun callback(state: String = lastPar.getValue("state"), issuer: String = "https://as.example") =
         "$REDIRECT?${formEncode(mapOf("state" to state, "code" to "code-secret", "iss" to issuer))}"
     suspend fun login(): AtProtoAccount {
-        authority().beginAuthorization("alice.example")
+        authority().beginAuthorization("alice.example.com")
         return authority().completeAuthorization(callback())
     }
     fun tokenJson(access: String, refresh: String) = buildJsonObject {
@@ -148,9 +148,41 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun actualWriterUsesTheSameEquivalentGrantParserAsTargetSelection(): Unit = runBlocking {
+        for (grant in listOf("repo:fm.teal.feed.play", "repo?collection=fm.teal.feed.play&action=create",
+            "repo:%66m.teal.feed.play?action=%63reate", "repo:*", "transition:generic")) {
+            val f = Fixture()
+            f.tokenScope = "atproto $grant"
+            val account = f.login()
+            assertTrue(com.arn.scrobble.atproto.posting.AtProtoTarget.TEAL in com.arn.scrobble.atproto.posting.AtProtoTarget.grantedBy(account.grantedScopes))
+            f.authority().createRecord(account.session, "fm.teal.feed.play", record())
+            assertEquals(1, f.resourceRequests)
+            f.client.close()
+        }
+        for (grant in listOf("repo:fm.teal.feed.play?action=update", "repo:fm.teal.feed.play?action=create&unknown=restriction",
+            "repo:fm.teal.*?action=create", "repo:fm.teal.feed.play?action=create&action=nope")) {
+            val f = Fixture()
+            f.tokenScope = "atproto $grant"
+            val account = f.login()
+            assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", record()) }
+            assertEquals(0, f.resourceRequests)
+            f.client.close()
+        }
+    }
+
+    @Test fun wholeSerializedRequestIncludingWrapperAndEscapingIsBoundedBeforeAnyNetwork(): Unit = runBlocking {
+        val f = Fixture()
+        val account = f.login()
+        // Each NUL serializes as six ASCII bytes, not its one input UTF-8 byte.
+        assertFailsWith<IllegalArgumentException> { f.authority().createRecord(account.session, "fm.teal.feed.play", buildJsonObject {
+            put("\$type", "fm.teal.feed.play"); put("escaped", "\u0000".repeat(11_000))
+        }) }
+        assertEquals(0, f.resourceRequests)
+    }
+
     @Test fun malformedCallbackNeverExposesCodeOrStateAndDoesNotConsumePendingAuthorization(): Unit = runBlocking {
         val f = Fixture()
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val callback = f.callback().replace("code-secret", "SYNTHETIC_PRIVATE_CALLBACK_SENTINEL")
         val failure = assertFailsWith<IllegalArgumentException> { f.authority().completeAuthorization("$callback&unknown=|") }
         val stack = failure.stackTraceToString() // Includes causes and suppressed exceptions.
@@ -262,7 +294,7 @@ class NativeOAuthAuthorityTest {
     @Test fun newerAuthorizationWinsAgainstOlderExchangeAndDetachedGeneration(): Unit = runBlocking {
         val f = Fixture()
         val initial = f.login()
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val callback = f.callback()
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -273,7 +305,7 @@ class NativeOAuthAuthorityTest {
         }
         val old = async { runCatching { f.authority().completeAuthorization(callback) } }
         entered.await()
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val replacement = f.authority().completeAuthorization(f.callback())
         release.complete(Unit)
         assertTrue(old.await().exceptionOrNull() is StaleAuthorizationException)
@@ -399,7 +431,7 @@ class NativeOAuthAuthorityTest {
                 if (request.url.encodedPath == "/oauth/par") respond("{}", HttpStatusCode.Created,
                     headersOf("DPoP-Nonce" to values)) else null
             }
-            assertFailsWith<DpopNonceException> { f.authority().beginAuthorization("alice.example") }
+            assertFailsWith<DpopNonceException> { f.authority().beginAuthorization("alice.example.com") }
             assertNull(f.authority().currentAccount())
         }
     }
@@ -438,7 +470,7 @@ class NativeOAuthAuthorityTest {
                 else -> null
             }
         }
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         f.authority().completeAuthorization(f.callback())
         assertEquals(2, parCalls)
         assertEquals(1, tokenCalls)
@@ -452,7 +484,7 @@ class NativeOAuthAuthorityTest {
                 json("""{"error":"use_dpop_nonce"}""", 400, "same-nonce")
             } else null
         }
-        assertFailsWith<OAuthResponseException> { g.authority().beginAuthorization("alice.example") }
+        assertFailsWith<OAuthResponseException> { g.authority().beginAuthorization("alice.example.com") }
         assertEquals(2, challenged)
     }
 
@@ -473,7 +505,7 @@ class NativeOAuthAuthorityTest {
     @Test fun callbackConsumptionAndCompletionPersistenceMustSucceedBeforeExchangeOrPublication(): Unit = runBlocking {
         for (failConsumption in listOf(true, false)) {
             val f = Fixture()
-            f.authority().beginAuthorization("alice.example")
+            f.authority().beginAuthorization("alice.example.com")
             val files = JvmVaultPersistence(f.root)
             var writes = 0
             val broken = object : VaultPersistence by files {
@@ -493,7 +525,7 @@ class NativeOAuthAuthorityTest {
     @Test fun simultaneousCallbacksExchangeExactlyOnceAndNewLoginChangesGeneration(): Unit = runBlocking {
         val f = Fixture()
         val old = f.login()
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val callback = f.callback()
         val results = listOf(async { runCatching { f.authority().completeAuthorization(callback) } },
             async { runCatching { f.authority().completeAuthorization(callback) } }).map { it.await() }
@@ -543,7 +575,7 @@ class NativeOAuthAuthorityTest {
 
     @Test fun recreatedAuthorityUsesDurableParNoncePkceAndActualGrantedScope(): Unit = runBlocking {
         val f = Fixture()
-        val launch = f.authority().beginAuthorization("@alice.example")
+        val launch = f.authority().beginAuthorization("@alice.example.com")
         assertEquals(setOf("client_id", "request_uri"), formDecode(launch.authorizationUrl.substringAfter('?')).keys)
         assertEquals(CLIENT, f.lastPar["client_id"])
         assertEquals(REDIRECT, f.lastPar["redirect_uri"])
@@ -572,7 +604,7 @@ class NativeOAuthAuthorityTest {
 
     @Test fun nativeCallbackRejectsWrongDestinationFragmentDuplicatesAndConflictingResultsWithoutExchange(): Unit = runBlocking {
         val f = Fixture()
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val callback = f.callback()
         for (invalid in listOf(callback.replace(REDIRECT, "example.client://pano-scrobbler/oauth/callback"),
             callback.replace(REDIRECT, "$REDIRECT/extra"), "$callback#code=evil", "$callback&%73tate=other",
@@ -587,7 +619,7 @@ class NativeOAuthAuthorityTest {
     @Test fun missingOrWrongIssuerBurnsOnlyTheMatchingState(): Unit = runBlocking {
         for (issuer in listOf(null, "https://evil.example")) {
             val f = Fixture()
-            f.authority().beginAuthorization("alice.example")
+            f.authority().beginAuthorization("alice.example.com")
             val callback = if (issuer == null) f.callback().substringBefore("&iss=") else f.callback(issuer = issuer)
             assertFailsWith<IllegalArgumentException> { f.authority().completeAuthorization(callback) }
             assertFailsWith<AtProtoOAuthException> { f.authority().completeAuthorization(f.callback()) }
@@ -597,13 +629,13 @@ class NativeOAuthAuthorityTest {
 
     @Test fun wrongStateDoesNotCancelPendingButExpiryAndDenialAreSingleUse(): Unit = runBlocking {
         val f = Fixture()
-        val launch = f.authority().beginAuthorization("alice.example")
+        val launch = f.authority().beginAuthorization("alice.example.com")
         assertFailsWith<AtProtoOAuthException> { f.authority().completeAuthorization(f.callback(state = "unknown")) }
         f.now = launch.expiresAt
         assertFailsWith<AtProtoOAuthException> { f.authority().completeAuthorization(f.callback()) }
         f.now--
         assertFailsWith<AtProtoOAuthException> { f.authority().completeAuthorization(f.callback()) }
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val denial = "$REDIRECT?${formEncode(mapOf("state" to f.lastPar.getValue("state"), "iss" to "https://as.example", "error" to "access_denied"))}"
         assertFailsWith<AuthorizationDeniedException> { f.authority().completeAuthorization(denial) }
         assertFailsWith<AtProtoOAuthException> { f.authority().completeAuthorization(denial) }
@@ -623,7 +655,7 @@ class NativeOAuthAuthorityTest {
         for (mutation in mutations) {
             val f = Fixture()
             f.tokenMutation = mutation
-            f.authority().beginAuthorization("alice.example")
+            f.authority().beginAuthorization("alice.example.com")
             assertFailsWith<IllegalArgumentException> { f.authority().completeAuthorization(f.callback()) }
             assertNull(f.authority().currentAccount())
         }
@@ -632,7 +664,7 @@ class NativeOAuthAuthorityTest {
     @Test fun changedDidOrPdsCannotBindACompletedAuthorization(): Unit = runBlocking {
         for (change in listOf<(Fixture) -> Unit>({ it.subject = "did:plc:zzzzzzzzzzzzzzzzzzzzzzzz" }, { it.pds = "https://migrated.example" })) {
             val f = Fixture()
-            f.authority().beginAuthorization("alice.example")
+            f.authority().beginAuthorization("alice.example.com")
             change(f)
             assertFailsWith<IllegalArgumentException> { f.authority().completeAuthorization(f.callback()) }
             assertNull(f.authority().currentAccount())
@@ -647,13 +679,13 @@ class NativeOAuthAuthorityTest {
             if (request.url.encodedPath == "/oauth/par") { entered.complete(Unit); finish.await() }
             null
         }
-        val begin = async { runCatching { f.authority().beginAuthorization("alice.example") } }
+        val begin = async { runCatching { f.authority().beginAuthorization("alice.example.com") } }
         entered.await()
         f.authority().logout()
         finish.complete(Unit)
         assertTrue(begin.await().exceptionOrNull() is StaleAuthorizationException)
         f.intercept = null
-        f.authority().beginAuthorization("alice.example")
+        f.authority().beginAuthorization("alice.example.com")
         val tokenEntered = CompletableDeferred<Unit>()
         val tokenFinish = CompletableDeferred<Unit>()
         f.intercept = { request ->

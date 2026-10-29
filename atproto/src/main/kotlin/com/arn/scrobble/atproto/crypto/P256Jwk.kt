@@ -10,9 +10,11 @@ import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.security.Signature
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
+import java.security.spec.ECFieldFp
 import java.security.spec.ECParameterSpec
 import java.security.spec.ECPoint
 import java.security.spec.ECPrivateKeySpec
@@ -30,8 +32,7 @@ data class P256PublicJwk(
     init {
         require(keyType == "EC") { "P-256 JWK key type must be EC" }
         require(curve == "P-256") { "P-256 JWK curve must be P-256" }
-        requireCoordinate("x", x)
-        requireCoordinate("y", y)
+        requirePoint(x, y)
     }
 
     fun thumbprint(): String {
@@ -53,9 +54,27 @@ data class P256PrivateJwk(
         require(keyType == "EC") { "P-256 JWK key type must be EC" }
         require(curve == "P-256") { "P-256 JWK curve must be P-256" }
         require(algorithm == "ES256") { "P-256 DPoP keys must use ES256" }
-        requireCoordinate("x", x)
-        requireCoordinate("y", y)
-        requireCoordinate("d", d)
+        val point = requirePoint(x, y)
+        val scalar = requireCoordinate("d", d)
+        require(scalar.signum() > 0 && scalar < p256Parameters.order) {
+            "P-256 JWK private scalar is out of range"
+        }
+
+        // Establish correspondence with JCA rather than secret-dependent scalar multiplication.
+        val factory = KeyFactory.getInstance("EC")
+        val privateKey = factory.generatePrivate(ECPrivateKeySpec(scalar, p256Parameters))
+        val publicKey = factory.generatePublic(ECPublicKeySpec(point, p256Parameters))
+        val message = "Pano P-256 key-pair validation".toByteArray(Charsets.US_ASCII)
+        val signature = Signature.getInstance("SHA256withECDSA").run {
+            initSign(privateKey)
+            update(message)
+            sign()
+        }
+        require(Signature.getInstance("SHA256withECDSA").run {
+            initVerify(publicKey)
+            update(message)
+            verify(signature)
+        }) { "P-256 JWK private and public keys do not match" }
     }
 
     fun publicJwk() = P256PublicJwk(keyType, curve, x, y)
@@ -94,10 +113,27 @@ private val p256Parameters: ECParameterSpec by lazy {
     }
 }
 
-private fun requireCoordinate(name: String, value: String) {
+private fun requireCoordinate(name: String, value: String): BigInteger {
+    require(value.length == 43) { "P-256 JWK $name must be an unpadded 32-byte base64url value" }
     val bytes = runCatching { value.decodeBase64Url() }
         .getOrElse { throw IllegalArgumentException("P-256 JWK $name must be base64url", it) }
     require(bytes.size == P256_BYTE_SIZE) { "P-256 JWK $name must contain 32 bytes" }
+    require(bytes.encodeBase64Url() == value) { "P-256 JWK $name must use canonical base64url encoding" }
+    return BigInteger(1, bytes)
+}
+
+private fun requirePoint(x: String, y: String): ECPoint {
+    val px = requireCoordinate("x", x)
+    val py = requireCoordinate("y", y)
+    val curve = p256Parameters.curve
+    val prime = (curve.field as ECFieldFp).p
+    require(px < prime && py < prime) { "P-256 JWK coordinates are out of range" }
+    require(py.multiply(py).mod(prime) == px.multiply(px).multiply(px)
+        .add(curve.a.multiply(px)).add(curve.b).mod(prime)) {
+        "P-256 JWK point is not on the curve"
+    }
+    // P-256 has cofactor 1; any finite point on this curve is in its prime-order subgroup.
+    return ECPoint(px, py)
 }
 
 private fun BigInteger.toFixedUnsignedBytes(size: Int): ByteArray {
