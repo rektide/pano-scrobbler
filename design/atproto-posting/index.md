@@ -10,18 +10,26 @@ sources:
     title: Connect the acknowledged architecture to the implemented storage boundary and fresh-worker handoff
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
     title: Connect the executable native OAuth and leased-transport checkpoint to its predecessor and remaining integration boundary
+  - resource: "opencode://ses_e7af14a6cffeDevLvL0joxsto6"
+    title: Connect the isolated hidden-engine-replay correction and focused real-wire transport evidence
   - resource: /design/atproto-posting/remake0.gpt61s.md
     title: Architecture proposal and current published-library qualification
   - resource: /design/atproto-posting/storage0.gpt61s.md
     title: Native account storage implementation, tests and remaining obligations
   - resource: /design/atproto-posting/oauth0.gpt61s.md
     title: Native OAuth lifecycle, dedicated transport and pending primitive/app integration
+  - resource: /design/atproto-posting/transport0.gpt61s.md
+    title: Focused public one-shot engine correction with real-wire replay, nonce-retry and CONNECT evidence
 ---
 
 # Clean AT Protocol contribution reading map
 
 ## Current implementation
 
+- [One-attempt credential POST transport](transport0.gpt61s.md): focused R3
+  correction to the frozen native checkpoint; original 503 preservation,
+  fresh-proof protocol retry and HTTPS proxy CONNECT boundaries. Carry its
+  code/test delta independently into the next native integration head.
 - [Native OAuth lifecycle checkpoint](oauth0.gpt61s.md): start here for typed
   callbacks, PAR/token/refresh, locked requests, leased dedicated transport and
   the 41-test executable prefix. Primitive adoption and native app activation
