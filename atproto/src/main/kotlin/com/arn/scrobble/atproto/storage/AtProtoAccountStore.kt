@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonObject
 import java.io.IOException
 import java.util.UUID
 
+@Serializable
 data class SessionHandle(val clientId: String, val did: String, val generation: String)
 
 class AuthorizationAttempt internal constructor(val clientId: String, internal val generation: String)
@@ -201,10 +202,11 @@ class AtProtoAccountStore(
     }
 
     /** Local deletion is durable first; remote revocation is a separate best-effort action. */
-    suspend fun logout(clientId: String): SessionSnapshot? = locked {
+    suspend fun logout(clientId: String, afterRemoval: suspend () -> Unit = {}): SessionSnapshot? = locked {
         val vault = read()
         val removed = vault.clients[clientId]
         save(vault.copy(clients = vault.clients - clientId))
+        afterRemoval()
         removed?.session?.snapshot(clientId)
     }
 

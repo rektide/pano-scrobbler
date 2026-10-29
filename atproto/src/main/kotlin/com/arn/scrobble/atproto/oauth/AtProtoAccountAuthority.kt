@@ -104,6 +104,12 @@ class AtProtoAccountAuthority internal constructor(
     /** Read-only secret-free view; never use it as credentials for a subsequent request. */
     suspend fun currentAccount(): AtProtoAccount? = store.currentSession(config.clientId)?.let(::account)
 
+    /** Short account projection only: no HTTP or nested authority operations in publish. */
+    suspend fun <T> publishAccount(handle: SessionHandle, publish: suspend (AtProtoAccount) -> T): T = store.withSession(handle) {
+        requireHandle(handle)
+        publish(account(requireNotNull(snapshot())))
+    }
+
     suspend fun refresh(handle: SessionHandle): AtProtoAccount = store.withSession(handle) {
         requireHandle(handle)
         withClient { client -> refreshIfNeeded(handle, client) }
@@ -112,12 +118,36 @@ class AtProtoAccountAuthority internal constructor(
 
     /** Narrow completed-record operation, not a general credential-bearing fetch API. */
     suspend fun createRecord(handle: SessionHandle, collection: String, record: JsonObject): CreatedRecord = store.withSession(handle) {
+        createRecordLocked(handle, collection, record)
+    }
+
+    /** Acknowledges each completed target durably before the next target can be sent. */
+    suspend fun postRecords(handle: SessionHandle, playId: String, records: Map<String, JsonObject>): CreatedRecord? = store.withSession(handle) {
+        requireHandle(handle)
+        require(playId.matches(Regex("[a-f0-9]{64}")) && records.isNotEmpty()) { "Invalid completed play" }
+        var current = decodeSession(credentials, handle)
+        require(playId in current.completedTargets || current.completedTargets.size < 128) { "Too many unfinished AT Protocol plays" }
+        var last: CreatedRecord? = null
+        for ((collection, record) in records) {
+            if (collection in current.completedTargets[playId].orEmpty()) continue
+            last = createRecordLocked(handle, collection, record)
+            current = decodeSession(credentials, handle)
+            current = current.copy(completedTargets = current.completedTargets +
+                (playId to (current.completedTargets[playId].orEmpty() + collection)))
+            replace(encode(current))
+        }
+        current = decodeSession(credentials, handle)
+        replace(encode(current.copy(completedTargets = current.completedTargets - playId)))
+        last
+    }
+
+    private suspend fun AtProtoAccountStore.SessionOperation.createRecordLocked(handle: SessionHandle, collection: String, record: JsonObject): CreatedRecord {
         requireHandle(handle)
         require(collection == "fm.teal.feed.play" || collection == "app.rocksky.scrobble") { "Unsupported completed-play collection" }
         require(record["\$type"]?.jsonPrimitive?.content == collection) { "Record type does not match its collection" }
         val body = json.encodeToString(CreateRecordRequest(handle.did, collection, record))
         require(body.toByteArray(Charsets.UTF_8).size <= 64 * 1024) { "Completed-play request is too large" }
-        withClient { client ->
+        return withClient { client ->
             refreshIfNeeded(handle, client)
             var result: CreatedRecord? = null
             for (attempt in 0..1) {
@@ -144,8 +174,8 @@ class AtProtoAccountAuthority internal constructor(
     }
 
     /** Durable local removal wins even if the optional remote revocation fails. */
-    suspend fun logout() {
-        val removed = store.logout(config.clientId) ?: return
+    suspend fun logout(afterLocalRemoval: suspend () -> Unit = {}) {
+        val removed = store.logout(config.clientId, afterLocalRemoval) ?: return
         val session = json.decodeFromJsonElement<StoredSession>(removed.credentials)
         val endpoint = session.authorizationServer.revocationEndpoint ?: return
         try {
