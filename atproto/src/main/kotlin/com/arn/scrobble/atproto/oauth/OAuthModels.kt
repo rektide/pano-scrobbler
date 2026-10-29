@@ -3,6 +3,7 @@ package com.arn.scrobble.atproto.oauth
 import com.arn.scrobble.atproto.crypto.P256PrivateJwk
 import com.arn.scrobble.atproto.identity.ResolvedIdentity
 import com.arn.scrobble.atproto.storage.SessionHandle
+import com.arn.scrobble.atproto.storage.AuthorizationAttempt
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.net.URI
@@ -24,7 +25,11 @@ data class OAuthClientConfig(val clientId: String, val redirectUri: String, val 
     }
 }
 
-data class AuthorizationLaunch(val authorizationUrl: String, val expiresAt: Long) {
+class AuthorizationLaunch internal constructor(
+    val authorizationUrl: String,
+    val expiresAt: Long,
+    internal val attempt: AuthorizationAttempt,
+) {
     override fun toString() = "AuthorizationLaunch(authorizationUrl=<redacted>, expiresAt=$expiresAt)"
 }
 

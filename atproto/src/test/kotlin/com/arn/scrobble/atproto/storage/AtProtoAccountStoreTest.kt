@@ -68,6 +68,10 @@ class AtProtoAccountStoreTest {
             vault.publishAuthorization(old, DID, "a", 100, credentials("secret"))
         }
         vault.publishAuthorization(current, DID, "b", 100, credentials("current"))
+        assertTrue(store(root).isAuthorizationPending(current, 1))
+        assertFailsWith<StaleAuthorizationException> {
+            vault.publishAuthorization(current, DID, "overwritten", 100, credentials("must-not-replace"))
+        }
         assertNull(vault.consumeAuthorization(CLIENT, "a", 1))
         assertEquals(credentials("current"), assertNotNull(vault.consumeAuthorization(CLIENT, "b", 1)).authorization)
     }
