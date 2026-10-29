@@ -9,19 +9,25 @@ sources:
   - resource: "opencode://ses_e7b3d8e43ffeUWIng4yiONPAnf"
     title: Connect the acknowledged architecture to the implemented storage boundary and fresh-worker handoff
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
-    title: Connect the executable native OAuth and leased-transport checkpoint to its predecessor and remaining integration boundary
+    title: Connect executable OAuth to activated native account/provider/UI integration, checks and fresh-worker handoff
   - resource: /design/atproto-posting/remake0.gpt61s.md
     title: Architecture proposal and current published-library qualification
   - resource: /design/atproto-posting/storage0.gpt61s.md
     title: Native account storage implementation, tests and remaining obligations
   - resource: /design/atproto-posting/oauth0.gpt61s.md
     title: Native OAuth lifecycle, dedicated transport and pending primitive/app integration
+  - resource: /design/atproto-posting/native0.gpt61s.md
+    title: Activated native integration, exact checks and remaining primitive qualification
 ---
 
 # Clean AT Protocol contribution reading map
 
 ## Current implementation
 
+- [Activated native integration and turnover](native0.gpt61s.md): current tip;
+  AccountType 10, provider, browser/native/paste callback, destination controls,
+  generation-safe publication and partial-target delivery. See the
+  [concise contributor guide](/doc/atproto.md) for use, overrides and PR scopes.
 - [Native OAuth lifecycle checkpoint](oauth0.gpt61s.md): start here for typed
   callbacks, PAR/token/refresh, locked requests, leased dedicated transport and
   the 41-test executable prefix. Primitive adoption and native app activation
