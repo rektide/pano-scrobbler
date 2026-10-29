@@ -511,6 +511,10 @@ fun AccountPref(
                                 dropdownShown = false
                             }
                         ) {
+                            if (type == AccountType.ATPROTO) item(
+                                text = { Text("Completed-play destinations / sign in") },
+                                onClick = { dropdownShown = false; onNavigate(PanoRoute.LoginAtProto) },
+                            )
                             item(
                                 text = {
                                     Text(
@@ -556,6 +560,15 @@ fun AccountPref(
                                 onClick = {
                                     dropdownShown = false
                                     Stuff.appScope.launch {
+                                        if (type == AccountType.ATPROTO) {
+                                            val handle = userAccount.atProtoSession ?: return@launch
+                                            com.arn.scrobble.api.atproto.PanoAtProto.authority.publishAccount(handle) {
+                                                PlatformStuff.mainPrefs.updateData { prefs -> prefs.copy(scrobbleAccounts = prefs.scrobbleAccounts.map {
+                                                    if (it.atProtoSession == handle) it.copy(canScrobble = !it.canScrobble) else it
+                                                }) }
+                                            }
+                                            return@launch
+                                        }
                                         PlatformStuff.mainPrefs.updateData { p ->
                                             val accounts =
                                                 p.scrobbleAccounts.filter { it.type != type } +

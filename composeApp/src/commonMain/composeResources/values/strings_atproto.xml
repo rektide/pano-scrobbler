@@ -1,0 +1,12 @@
+<resources>
+    <string name="atproto">AT Protocol (Rocksky / Teal)</string>
+    <string name="atproto_account">Handle or DID</string>
+    <string name="atproto_sign_in">Authorize in browser</string>
+    <string name="atproto_callback">Paste the complete callback URL</string>
+    <string name="atproto_complete">Complete authorization</string>
+    <string name="atproto_publish">Retry publishing authorized account</string>
+    <string name="atproto_targets">Completed-play destinations</string>
+    <string name="atproto_info">Pano submits completed plays only. Now playing, charts, social reads, artwork, love and deletion are not supported. Each destination requires its own granted permission.</string>
+    <string name="atproto_waiting">Waiting for browser approval. Desktop users can paste the callback URL below.</string>
+    <string name="atproto_not_granted">Not granted</string>
+</resources>

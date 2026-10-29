@@ -98,6 +98,9 @@ sealed interface PanoRoute : NavKey {
     data object LoginListenBrainz : PanoRoute
 
     @Serializable
+    data object LoginAtProto : PanoRoute
+
+    @Serializable
     data class LoginCustomListenBrainz(
         @IntRange(1, 3)
         val slot: Int
@@ -411,6 +414,7 @@ sealed interface PanoRoute : NavKey {
 
             AccountType.PLEROMA,
             AccountType.FILE,
+            AccountType.ATPROTO,
                 -> listOf(
                 PanoTab.ScrobblesNoSubtabs,
             )

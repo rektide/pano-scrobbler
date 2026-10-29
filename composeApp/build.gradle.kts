@@ -132,6 +132,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
         }
 
         jvmMain.dependencies {
@@ -185,6 +186,9 @@ buildkonfig {
         buildConfigField(INT, "VER_CODE", VER_CODE.toString(), const = true)
         buildConfigField(STRING, "VER_NAME", VER_NAME, const = true)
         buildConfigField(BOOLEAN, "DEBUG", (!isReleaseBuild).toString(), const = true)
+        buildConfigField(STRING, "ATPROTO_CLIENT_ID", rootProject.extra["ATPROTO_CLIENT_ID"] as String, const = true)
+        buildConfigField(STRING, "ATPROTO_REDIRECT_URI", rootProject.extra["ATPROTO_REDIRECT_URI"] as String, const = true)
+        buildConfigField(STRING, "ATPROTO_REDIRECT_SCHEME", rootProject.extra["ATPROTO_REDIRECT_SCHEME"] as String, const = true)
 
         val lastfmKey = localProperties.getProperty("lastfm.key")
             ?: throw IllegalStateException("lastfm.key not found in local.properties")

@@ -416,6 +416,11 @@ object PanoNavGraph {
             )
         }
 
+        entry<PanoRoute.LoginAtProto> { route ->
+            onSetTitleString(route, accountTypeLabel(AccountType.ATPROTO))
+            com.arn.scrobble.onboarding.AtProtoLoginScreen(onDone = goBack, modifier = Modifier.navScrollableColumn())
+        }
+
         entry<PanoRoute.LoginListenBrainz> { route ->
 
             onSetTitleRes(route, Res.string.listenbrainz)
