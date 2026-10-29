@@ -1,7 +1,8 @@
 package com.arn.scrobble.atproto.oauth
 
 import com.arn.scrobble.atproto.http.fetchJson
-import com.arn.scrobble.atproto.http.httpOrigin
+import com.arn.scrobble.atproto.http.requireHttpsOrigin
+import com.arn.scrobble.atproto.http.requireHttpsUrl
 import com.arn.scrobble.atproto.identity.IdentityResolver
 import com.arn.scrobble.atproto.identity.ResolvedIdentity
 import io.ktor.client.HttpClient
@@ -9,7 +10,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import java.net.URI
 
 @Serializable
 internal data class DiscoveredAccount(
@@ -52,7 +52,7 @@ internal class OAuthDiscovery(
     }
 
     suspend fun resolve(identity: ResolvedIdentity): DiscoveredAccount {
-        val resource = canonicalHttpsOrigin(identity.pds)
+        val resource = requireHttpsOrigin(identity.pds, "PDS origin", canonical = true)
         val protectedResourceUrl = "$resource/.well-known/oauth-protected-resource"
         val resourceElement = httpClient.fetchJson(
             url = protectedResourceUrl,
@@ -66,7 +66,9 @@ internal class OAuthDiscovery(
             "Protected resource metadata must declare exactly one authorization server"
         }
 
-        val authorizationServerOrigin = canonicalHttpsOrigin(resourceMetadata.authorizationServers.single())
+        val authorizationServerOrigin = requireHttpsOrigin(
+            resourceMetadata.authorizationServers.single(), "Authorization server issuer", canonical = true,
+        )
         val serverElement = httpClient.fetchJson(
             url = "$authorizationServerOrigin/.well-known/oauth-authorization-server",
             maxBytes = 32 * 1024,
@@ -114,7 +116,9 @@ private fun validateAuthorizationServer(
         "Authorization server does not support ES256 client authentication"
     }
     require("atproto" in server.scopesSupported) { "Authorization server does not support the atproto scope" }
-    require("ES256" in server.dpopSigningAlgorithmsSupported) { "Authorization server does not support ES256 DPoP" }
+    require("ES256" in server.dpopSigningAlgorithmsSupported && "none" !in server.dpopSigningAlgorithmsSupported) {
+        "Authorization server does not support secure ES256 DPoP"
+    }
     require(server.authorizationResponseIssuerParameterSupported) {
         "Authorization server does not support callback issuer parameters"
     }
@@ -128,21 +132,4 @@ private fun validateAuthorizationServer(
     server.protectedResources?.let {
         require(resource in it) { "Authorization server does not list the PDS as a protected resource" }
     }
-}
-
-private fun requireHttpsUrl(value: String, label: String) {
-    val uri = URI(value)
-    require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.rawFragment == null) {
-        "Authorization server $label must be an HTTPS URL"
-    }
-}
-
-private fun canonicalHttpsOrigin(value: String): String {
-    val uri = URI(value)
-    require(uri.scheme == "https" && uri.host != null && uri.userInfo == null) { "OAuth origins must use HTTPS" }
-    require(uri.rawPath.isNullOrEmpty() || uri.rawPath == "/") {
-        "OAuth origins must not contain a path"
-    }
-    require(uri.rawQuery == null && uri.rawFragment == null) { "OAuth origins must not contain a query or fragment" }
-    return httpOrigin(value)
 }

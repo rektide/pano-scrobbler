@@ -1,14 +1,12 @@
 package com.arn.scrobble.atproto.identity
 
 import com.arn.scrobble.atproto.http.fetchJson
-import com.arn.scrobble.atproto.http.httpOrigin
+import com.arn.scrobble.atproto.http.requireHttpsOrigin
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import java.net.URI
-import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -36,7 +34,7 @@ internal class IdentityResolver(
             requestedHandle = null
             did = requireSupportedDid(trimmed)
         } else {
-            requestedHandle = normalizeHandle(trimmed)
+            requestedHandle = requireResolvableHandle(normalizeHandle(trimmed))
             did = resolveHandle(requestedHandle)
         }
 
@@ -44,7 +42,7 @@ internal class IdentityResolver(
         require(document.id == did) { "Resolved DID document ID does not match the requested DID" }
         val pds = document.pdsEndpoint()
         val handle = if (requestedHandle != null) {
-            require("at://$requestedHandle" in document.alsoKnownAs) {
+            require(document.claimedHandle() == requestedHandle) {
                 "Handle is not bidirectionally linked from the DID document"
             }
             requestedHandle
@@ -58,6 +56,7 @@ internal class IdentityResolver(
     suspend fun resolveDid(did: String): ResolvedIdentity = resolve(requireSupportedDid(did))
 
     private suspend fun resolveHandle(handle: String): String {
+        requireResolvableHandle(handle)
         val url = origin(handleResolver) +
             "/xrpc/com.atproto.identity.resolveHandle?handle=" +
             URLEncoder.encode(handle, StandardCharsets.UTF_8.name())
@@ -76,7 +75,7 @@ internal class IdentityResolver(
         }
         val element = httpClient.fetchJson(
             url = url,
-            acceptedTypes = setOf("application/json", "application/did+ld+json"),
+            acceptedTypes = setOf("application/json", "application/did+json", "application/did+ld+json"),
             maxBytes = 20 * 1024,
             json = json,
         )
@@ -84,62 +83,37 @@ internal class IdentityResolver(
     }
 
     private suspend fun resolveVerifiedHandle(document: DidDocument, did: String): String? {
-        for (alias in document.alsoKnownAs) {
-            if (!alias.startsWith("at://")) continue
-            val handle = runCatching { normalizeHandle(alias.removePrefix("at://")) }.getOrNull() ?: continue
-            val resolved = try {
-                resolveHandle(handle)
-            } catch (cause: CancellationException) {
-                throw cause
-            } catch (_: Exception) {
-                null
-            }
-            if (resolved == did) return handle
+        val handle = document.claimedHandle() ?: return null
+        val resolved = try {
+            resolveHandle(handle)
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (_: Exception) {
+            null
         }
-        return null
+        return handle.takeIf { resolved == did }
     }
 }
 
 @Serializable
 private data class ResolveHandleResponse(val did: String)
 
-private fun requireSupportedDid(value: String): String {
+internal fun requireSupportedDid(value: String): String {
     require(PLC_DID.matches(value) || isWebDid(value)) { "Unsupported or invalid AT Protocol DID" }
     return value
 }
 
-private fun isWebDid(value: String): Boolean =
-    value.startsWith("did:web:") &&
-        value.length > "did:web:".length &&
-        value.none { it.isWhitespace() || it == '/' || it == '?' || it == '#' }
+private fun isWebDid(value: String): Boolean {
+    if (!value.startsWith("did:web:")) return false
+    val host = value.removePrefix("did:web:")
+    // Production AT Protocol only supports hostname-level did:web. Encoded
+    // ports are a localhost-only development exception, not a native app input.
+    return runCatching { requireResolvableHandle(parseHandle(host)) == host }.getOrDefault(false)
+}
 
 private fun didWebDocumentUrl(did: String): String {
-    val parts = did.removePrefix("did:web:").split(':').map(::decodeDidWebPart)
-    val host = parts.first()
-    require(host.isNotEmpty() && '/' !in host) { "Invalid did:web host" }
-    val hostUri = URI("https://$host")
-    require(hostUri.host != null && hostUri.userInfo == null && hostUri.rawPath.isNullOrEmpty()) {
-        "Invalid did:web host"
-    }
-    val path = if (parts.size == 1) {
-        "/.well-known/did.json"
-    } else {
-        require(parts.drop(1).all { it.isNotEmpty() && '/' !in it }) { "Invalid did:web path" }
-        "/${parts.drop(1).joinToString("/")}/did.json"
-    }
-
-    return URI("https", null, hostUri.host.lowercase(), hostUri.port, path, null, null).toASCIIString()
+    requireSupportedDid(did)
+    return "https://${did.removePrefix("did:web:")}/.well-known/did.json"
 }
 
-private fun decodeDidWebPart(value: String): String =
-    URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
-
-private fun origin(value: String): String {
-    val uri = URI(value)
-    require(uri.scheme == "https" && uri.host != null && uri.userInfo == null) { "Discovery origin must use HTTPS" }
-    require(uri.rawPath.isNullOrEmpty() || uri.rawPath == "/") {
-        "Discovery origin must not contain a path"
-    }
-    require(uri.rawQuery == null && uri.rawFragment == null) { "Discovery origin must not contain a query or fragment" }
-    return httpOrigin(value)
-}
+private fun origin(value: String): String = requireHttpsOrigin(value, "Discovery origin")

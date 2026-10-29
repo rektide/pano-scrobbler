@@ -8,6 +8,8 @@ generated: { by: "model:openai/gpt-6.1-sol#xhigh", at: 2026-10-28 }
 extensions:
   ticket: pano-atproto-remake-protocol
 sources:
+  - resource: "opencode://ses_e7b181b8effef7JO12Vhel0XwH"
+    title: B2 links the preserved transport handoff to the separately recorded portable validation successor
   - resource: "opencode://ses_e7b3ccec5ffeuJpOmxDoerRcX6"
     title: Isolated the old self-contained checkpoint, reproduced transport failures, implemented reusable fixes and recorded successor obligations without changing native authority
   - resource: "opencode://ses_e7ba46f7fffeze8ND55fl0uJF8"
@@ -33,6 +35,10 @@ sources:
 ---
 
 # Reusable protocol transport hardening for the Pano remake
+
+**Successor:** [portable validation and current adoption map](protocol-handoff1.gpt61s.md)
+records B2's crypto, grants, identity/discovery and record fixes. The checkpoint and
+remaining-findings tables below preserve the predecessor's turnover state.
 
 **Adopt the small transport delta, not this entire old application branch.** The
 parent selected one Pano-owned Kotlin implementation after worker A's published
