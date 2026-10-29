@@ -11,6 +11,7 @@ import com.arn.scrobble.atproto.http.DpopServer
 import com.arn.scrobble.atproto.http.HttpResponseBodyException
 import com.arn.scrobble.atproto.http.hasDpopError
 import com.arn.scrobble.atproto.posting.AtProtoTarget
+import com.arn.scrobble.atproto.posting.requireRecordCid
 import com.arn.scrobble.atproto.storage.AtProtoAccountStore
 import com.arn.scrobble.atproto.storage.SessionHandle
 import com.arn.scrobble.atproto.storage.SessionSnapshot
@@ -177,6 +178,16 @@ class AtProtoAccountAuthority internal constructor(
     /** Durable local removal wins even if the optional remote revocation fails. */
     suspend fun logout(afterLocalRemoval: suspend () -> Unit = {}) {
         val removed = store.logout(config.clientId, afterLocalRemoval) ?: return
+        revoke(removed)
+    }
+
+    /** Explicit reference removal can target an old build identity, but never a newer generation. */
+    suspend fun removeAccount(handle: SessionHandle, afterLocalRemoval: suspend () -> Unit = {}) {
+        val removed = store.removeSession(handle, afterLocalRemoval) ?: return
+        revoke(removed)
+    }
+
+    private suspend fun revoke(removed: SessionSnapshot) {
         val session = json.decodeFromJsonElement<StoredSession>(removed.credentials)
         val endpoint = session.authorizationServer.revocationEndpoint ?: return
         try {
@@ -300,6 +311,6 @@ data class CreatedRecord(val uri: String, val cid: String) {
         require(key.length in 1..512 && key != "." && key != ".." && key.all { it.isLetterOrDigit() && it.code < 128 || it in "._~:-" }) {
             "PDS returned an invalid record key"
         }
-        require(cid.matches(Regex("bafyrei[a-z2-7]{52}"))) { "PDS returned an invalid DAG-CBOR CID shape" }
+        requireRecordCid(cid)
     }
 }

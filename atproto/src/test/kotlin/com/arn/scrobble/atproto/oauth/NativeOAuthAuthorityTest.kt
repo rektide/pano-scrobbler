@@ -24,6 +24,7 @@ import io.ktor.http.headersOf
 import io.ktor.http.content.TextContent
 import io.ktor.utils.io.ByteChannel
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -148,6 +149,15 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun recordResultParsesCanonicalCidProfileWithoutClaimingContentVerification() {
+        val uri = "at://$DID/fm.teal.feed.play/key"
+        val valid = "bafyrei${"a".repeat(52)}"
+        CreatedRecord(uri, valid).validate(DID, "fm.teal.feed.play")
+        for (cid in listOf(valid.uppercase(), valid + "=", valid.dropLast(1), "bafyrei7${"a".repeat(51)}",
+            valid.dropLast(1) + "b", valid.replace("bafyrei", "bafkrei")))
+            assertFailsWith<IllegalArgumentException> { CreatedRecord(uri, cid).validate(DID, "fm.teal.feed.play") }
+    }
+
     @Test fun actualWriterUsesTheSameEquivalentGrantParserAsTargetSelection(): Unit = runBlocking {
         for (grant in listOf("repo:fm.teal.feed.play", "repo?collection=fm.teal.feed.play&action=create",
             "repo:%66m.teal.feed.play?action=%63reate", "repo:*", "transition:generic")) {
@@ -254,6 +264,32 @@ class NativeOAuthAuthorityTest {
             }
             f.authority().refresh(initial.session)
         } finally { body.close(); f.client.close() }
+    }
+
+    @Test fun bodyReadCancellationKeepsReceivedErrorStatusAndOriginalCancellationAttribution(): Unit = runBlocking {
+        for (status in listOf(400, 403, 503)) for (hasNonce in listOf(true, false)) {
+            val f = Fixture()
+            val initial = f.login()
+            f.now += 120_000
+            val body = ByteChannel()
+            val original = CancellationException("synthetic body reader cancellation")
+            f.intercept = { request ->
+                if (request.url.encodedPath == "/oauth/token") {
+                    launch { delay(20); body.cancel(original) }
+                    respond(body, HttpStatusCode.fromValue(status), headersOf(*buildList {
+                        add("Content-Type" to listOf("application/json"))
+                        if (hasNonce) add("DPoP-Nonce" to listOf("cancel-error-nonce"))
+                    }.toTypedArray()))
+                } else null
+            }
+            if (hasNonce) {
+                val failure = assertFailsWith<CancellationException> { f.authority().refresh(initial.session) }
+                assertEquals(original.message, failure.message)
+            } else assertFailsWith<DpopNonceException> { f.authority().refresh(initial.session) }
+            assertEquals(initial, f.authority().currentAccount())
+            body.close()
+            f.client.close()
+        }
     }
 
     @Test fun nonceRetryCannotAttributeEarlierErrorHeadersToLaterUnknownStatusLoss(): Unit = runBlocking {

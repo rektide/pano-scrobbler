@@ -55,6 +55,26 @@ internal class PanoAtProtoAccounts(
         }
     }
 
+    /** The reference the operator clicked, not whichever login is current when this coroutine runs. */
+    suspend fun remove(reference: UserAccountSerializable) {
+        require(reference.type == AccountType.ATPROTO)
+        val handle = reference.atProtoSession
+        val removeProjection: suspend () -> Unit = {
+            prefs.updateData { current ->
+                val remaining = current.scrobbleAccounts.filterNot {
+                    it.type == AccountType.ATPROTO && if (handle == null) it == reference else it.atProtoSession == handle
+                }
+                val hasReplacement = remaining.any { it.type == AccountType.ATPROTO }
+                current.copy(scrobbleAccounts = remaining,
+                    currentAccountType = if (current.currentAccountType == AccountType.ATPROTO && !hasReplacement)
+                        remaining.firstOrNull()?.type ?: AccountType.LASTFM else current.currentAccountType,
+                    drawerData = if (hasReplacement) current.drawerData else current.drawerData - AccountType.ATPROTO)
+            }
+            Unit
+        }
+        if (handle == null) removeProjection() else authority.removeAccount(handle, removeProjection)
+    }
+
     private fun AtProtoAccount.reference() = UserAccountSerializable(
         type = AccountType.ATPROTO,
         user = UserCached(handle ?: session.did, "https://bsky.app/profile/${session.did}", handle ?: session.did, "", -1),

@@ -202,6 +202,20 @@ class AtProtoAccountStore(
     }
 
     /** Local deletion is durable first; remote revocation is a separate best-effort action. */
+    suspend fun removeSession(handle: SessionHandle, afterRemoval: suspend () -> Unit = {}): SessionSnapshot? = locked {
+        val vault = read()
+        val session = vault.clients[handle.clientId]?.session?.takeIf {
+            it.did == handle.did && it.generation == handle.generation
+        }
+        if (session != null) save(vault.copy(clients = vault.clients - handle.clientId))
+        // A stale display reference may be removed, but cannot remove another generation
+        // or invalidate a newer pending login. The projection must match this exact handle.
+        afterRemoval()
+        // An interrupted rotation's old credential is not usable for remote work either.
+        session?.takeUnless { it.updating }?.snapshot(handle.clientId)
+    }
+
+    /** Explicit client-wide logout, including pending authorization. Not a stale UI reference removal. */
     suspend fun logout(clientId: String, afterRemoval: suspend () -> Unit = {}): SessionSnapshot? = locked {
         val vault = read()
         val removed = vault.clients[clientId]
