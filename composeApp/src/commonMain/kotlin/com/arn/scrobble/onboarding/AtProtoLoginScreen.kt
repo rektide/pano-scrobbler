@@ -36,10 +36,7 @@ fun AtProtoLoginScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     }
     LaunchedEffect(state.launch) { state.launch?.let { PlatformStuff.openInBrowser(it.authorizationUrl) } }
     LaunchedEffect(state.completed) {
-        if (state.completed != null) {
-            PanoAtProto.resetLoginResult()
-            onDone()
-        }
+        state.completed?.let { if (PanoAtProto.consumeCompleted(it.session)) onDone() }
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(Res.string.atproto_info))
