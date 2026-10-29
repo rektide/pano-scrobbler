@@ -39,6 +39,7 @@ android {
         versionCode = VER_CODE
         versionName = VER_NAME
         base.archivesName = APP_NAME_NO_SPACES
+        manifestPlaceholders["atprotoRedirectScheme"] = rootProject.extra["ATPROTO_REDIRECT_SCHEME"] as String
     }
 
     buildFeatures {

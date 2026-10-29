@@ -145,6 +145,11 @@ object DeepLinkUtils {
 
         val uri = intent.data ?: return null
 
+        if (uri.scheme == com.arn.scrobble.BuildKonfig.ATPROTO_REDIRECT_SCHEME) {
+            com.arn.scrobble.api.atproto.PanoAtProto.completeCallback(uri.toString())
+            return PanoRoute.LoginAtProto
+        }
+
         if (uri.scheme == SCHEME && uri.authority == AUTHORITY) {
             val routeStr = uri.getQueryParameter(ROUTE) ?: return null
             val route = try {

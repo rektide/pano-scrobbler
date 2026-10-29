@@ -164,9 +164,10 @@ enum class AccountType(val id: Int) {
 
     //    MALOJA(5),
     PLEROMA(6),
-    FILE(7);
+    FILE(7),
+    ATPROTO(10);
 
-    val isCustom get() = this != LASTFM && this != LISTENBRAINZ && this != LIBREFM && this != FILE
+    val isCustom get() = this != LASTFM && this != LISTENBRAINZ && this != LIBREFM && this != FILE && this != ATPROTO
 }
 
 object Scrobblables {
@@ -202,6 +203,10 @@ object Scrobblables {
         get() = all.firstOrNull { it.userAccount.type == currentAccountType.value }
 
     suspend fun deleteAllByType(type: AccountType) {
+        if (type == AccountType.ATPROTO) {
+            com.arn.scrobble.api.atproto.PanoAtProto.accounts.logout()
+            return
+        }
         PlatformStuff.mainPrefs.updateData {
             val remainingAccounts = it.scrobbleAccounts.filterNot { it.type == type }
             var currentAccountType = it.currentAccountType
@@ -224,6 +229,7 @@ object Scrobblables {
     }
 
     suspend fun add(userAccount: UserAccountSerializable) {
+        require(userAccount.type != AccountType.ATPROTO) { "Publish AT Protocol accounts through the native authority" }
         PlatformStuff.mainPrefs.updateData {
             // if same type already exists, remove it first
             val filteredAccounts = it.scrobbleAccounts.filterNot { it.type == userAccount.type }
@@ -255,6 +261,7 @@ object Scrobblables {
             AccountType.PLEROMA -> Pleroma(userAccount)
 
             AccountType.FILE -> FileScrobblable(userAccount)
+            AccountType.ATPROTO -> com.arn.scrobble.api.atproto.AtProtoScrobblable(userAccount)
         }
     }
 }
