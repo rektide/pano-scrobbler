@@ -145,6 +145,44 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun dualTargetProgressSurvivesPartialFailureAndRecreatedAuthoritySkipsAcknowledgedTarget(): Unit = runBlocking {
+        val f = Fixture()
+        f.tokenScope = SCOPE
+        val account = f.login()
+        val sent = mutableListOf<String>()
+        var failRocksky = true
+        f.intercept = { request ->
+            if (request.url.encodedPath.endsWith("createRecord")) {
+                val collection = Json.parseToJsonElement((request.body as TextContent).text).jsonObject.getValue("collection").jsonPrimitive.content
+                sent += collection
+                if (collection == "app.rocksky.scrobble" && failRocksky) json("{}", 503, "rocksky-failed") else null
+            } else null
+        }
+        val records = linkedMapOf("fm.teal.feed.play" to record(), "app.rocksky.scrobble" to record("app.rocksky.scrobble"))
+        assertFailsWith<OAuthResponseException> { f.authority().postRecords(account.session, "a".repeat(64), records) }
+        failRocksky = false
+        f.authority().postRecords(account.session, "a".repeat(64), records)
+        assertEquals(listOf("fm.teal.feed.play", "app.rocksky.scrobble", "app.rocksky.scrobble"), sent)
+    }
+
+    @Test fun failedProgressPublicationStopsBeforeTheNextTargetWithoutQuarantiningToken(): Unit = runBlocking {
+        val f = Fixture()
+        f.tokenScope = SCOPE
+        val account = f.login()
+        val files = JvmVaultPersistence(f.root)
+        var writes = 0
+        val broken = object : VaultPersistence by files {
+            override fun write(bytes: ByteArray) {
+                if (++writes == 2) throw IOException("cannot acknowledge target")
+                files.write(bytes)
+            }
+        }
+        assertFailsWith<IOException> { f.authority(f.store(broken)).postRecords(account.session, "b".repeat(64), linkedMapOf(
+            "fm.teal.feed.play" to record(), "app.rocksky.scrobble" to record("app.rocksky.scrobble"))) }
+        assertEquals(1, f.resourceRequests)
+        assertEquals(account, f.authority().currentAccount())
+    }
+
     @Test fun onlyExactInvalidTokenChallengeForcesRefreshAndOneSafeRetryEvenWithUnknownExpiry(): Unit = runBlocking {
         for (challenge in listOf(null, "Bearer error=\"invalid_token\"", "DPoPish error=\"invalid_token\"",
             "DPoP error=\"INVALID_TOKEN\"", "DPoP realm=\"error=invalid_token\"",
