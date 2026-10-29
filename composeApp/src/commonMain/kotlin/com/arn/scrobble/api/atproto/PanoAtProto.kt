@@ -4,6 +4,7 @@ import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.api.AccountType
 import com.arn.scrobble.api.Requesters
 import com.arn.scrobble.atproto.oauth.AtProtoAccountAuthority
+import com.arn.scrobble.atproto.oauth.AuthorizationLaunch
 import com.arn.scrobble.atproto.oauth.OAuthClientConfig
 import com.arn.scrobble.atproto.posting.AtProtoTarget
 import com.arn.scrobble.atproto.storage.SessionHandle
@@ -22,6 +23,7 @@ internal object PanoAtProto {
     fun begin(identifier: String) = loginController.begin(identifier)
     fun completeCallback(callback: String) = loginController.completeCallback(callback)
     fun retryPublication() = loginController.retryPublication()
+    fun consumeBrowserLaunch(launch: AuthorizationLaunch) = loginController.consumeBrowserLaunch(launch)
     fun consumeCompleted(handle: SessionHandle) = loginController.consumeCompleted(handle)
 
     suspend fun select(handle: SessionHandle, target: AtProtoTarget, enabled: Boolean) = authority.publishAccount(handle) { current ->

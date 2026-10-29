@@ -15,6 +15,7 @@ internal class AtProtoLogin(private val accounts: PanoAtProtoAccounts, private v
     data class State(
         val busy: Boolean = false,
         val launch: AuthorizationLaunch? = null,
+        val browserPending: Boolean = false,
         val completed: AtProtoAccount? = null,
         val error: String? = null,
         val publication: AtProtoAccount? = null,
@@ -34,7 +35,7 @@ internal class AtProtoLogin(private val accounts: PanoAtProtoAccounts, private v
             ++operation
         }
         scope.launch {
-            try { finish(id, State(launch = accounts.authority.beginAuthorization(identifier))) }
+            try { finish(id, State(launch = accounts.authority.beginAuthorization(identifier), browserPending = true)) }
             catch (cause: CancellationException) { throw cause }
             catch (_: Exception) { finish(id, State(error = "Could not begin authorization. Check the account, network and published client metadata.")) }
         }
@@ -71,6 +72,13 @@ internal class AtProtoLogin(private val accounts: PanoAtProtoAccounts, private v
             catch (_: Exception) { finish(id, State(publication = account,
                 error = "The saved authorization could not be published. Retry, or start a new login if it was removed or replaced.")) }
         }
+    }
+
+    /** Retain the URL for explicit reopening, but never automatically reopen it on screen reentry. */
+    fun consumeBrowserLaunch(launch: AuthorizationLaunch): Boolean = synchronized(monitor) {
+        val current = mutableState.value
+        current.launch == launch && current.browserPending &&
+            mutableState.compareAndSet(current, current.copy(browserPending = false))
     }
 
     /** Navigation can briefly retain two screens; completion is consumed once, never inferred from account presence. */

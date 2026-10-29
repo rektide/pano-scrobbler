@@ -63,6 +63,8 @@ private class AccountFixture {
     var did = "did:plc:abcdefghijklmnopqrstuvwx"
     private var state = ""
     var tokens = 0
+    var tokenEntered: CompletableDeferred<Unit>? = null
+    var tokenRelease: CompletableDeferred<Unit>? = null
     val posts = mutableListOf<kotlinx.serialization.json.JsonObject>()
     private val client = HttpClient(MockEngine { request ->
         check(!prefs.writing) { "HTTP must not run in a general preference transaction" }
@@ -80,6 +82,8 @@ private class AccountFixture {
             }
             path == "/token" -> {
                 tokens++
+                tokenEntered?.complete(Unit)
+                tokenRelease?.await()
                 """{"access_token":"synthetic-access-secret","refresh_token":"synthetic-refresh-secret","token_type":"DPoP","scope":"atproto repo:fm.teal.feed.play?action=create","sub":"$did","expires_in":120}"""
             }
             path.endsWith("createRecord") -> {
@@ -105,6 +109,21 @@ private class AccountFixture {
 }
 
 class PanoAtProtoAccountsTest {
+    @Test fun automaticBrowserLaunchIsClaimedOnceAcrossScreenReentryWhileExplicitReopeningRemainsAvailable(): Unit = runBlocking {
+        val f = AccountFixture()
+        val login = AtProtoLogin(f.accounts, CoroutineScope(coroutineContext))
+        login.begin("alice.example.com")
+        val launch = withTimeout(5_000) { login.state.first { it.launch != null } }.launch!!
+        val screens = List(2) { async { login.consumeBrowserLaunch(launch) } }.map { it.await() }
+        assertEquals(1, screens.count { it })
+        assertEquals(launch, login.state.value.launch) // Explicit browser button still has the URL.
+        assertFalse(login.consumeBrowserLaunch(launch)) // A recreated screen cannot reopen it automatically.
+        login.completeCallback(f.callback())
+        withTimeout(5_000) { login.state.first { it.completed != null } }
+        assertFalse(login.consumeBrowserLaunch(launch))
+        assertNull(login.state.value.launch)
+    }
+
     @Test fun sameDidReplacementPreservesDisabledChoicesWhileNewDidStartsWithDefaults(): Unit = runBlocking {
         val f = AccountFixture()
         val first = f.authorize()
@@ -149,9 +168,16 @@ class PanoAtProtoAccountsTest {
     @Test fun overlappingScreensConsumeOnlyNewCompletionOnceAndDuplicateCallbacksCannotOverwriteIt(): Unit = runBlocking {
         val f = AccountFixture()
         f.authority.beginAuthorization("alice.example.com")
+        f.tokenEntered = CompletableDeferred()
+        f.tokenRelease = CompletableDeferred()
         val login = AtProtoLogin(f.accounts, CoroutineScope(coroutineContext))
         login.completeCallback(f.callback())
+        f.tokenEntered!!.await()
         login.completeCallback(f.callback())
+        login.begin("other.example.com") // A delayed exchange cannot be overwritten by a competing UI job.
+        assertTrue(login.state.value.busy)
+        assertEquals(1, f.tokens)
+        f.tokenRelease!!.complete(Unit)
         val completed = withTimeout(5_000) { login.state.first { it.completed != null } }.completed!!
         assertEquals(1, f.tokens)
         assertFalse(login.consumeCompleted(completed.session.copy(generation = "wrong-generation")))
