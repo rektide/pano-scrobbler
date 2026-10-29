@@ -22,12 +22,15 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.content.TextContent
+import io.ktor.utils.io.ByteChannel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -145,6 +148,141 @@ private const val SERVER = """{
 }"""
 
 class NativeOAuthAuthorityTest {
+    @Test fun malformedCallbackNeverExposesCodeOrStateAndDoesNotConsumePendingAuthorization(): Unit = runBlocking {
+        val f = Fixture()
+        f.authority().beginAuthorization("alice.example")
+        val callback = f.callback().replace("code-secret", "SYNTHETIC_PRIVATE_CALLBACK_SENTINEL")
+        val failure = assertFailsWith<IllegalArgumentException> { f.authority().completeAuthorization("$callback&unknown=|") }
+        val stack = failure.stackTraceToString() // Includes causes and suppressed exceptions.
+        assertFalse("SYNTHETIC_PRIVATE_CALLBACK_SENTINEL" in stack)
+        assertFalse(f.lastPar.getValue("state") in stack)
+        assertNull(failure.cause)
+        assertTrue(failure.suppressed.isEmpty())
+        assertEquals(0, f.tokenRequests)
+        assertNotNull(f.authority().completeAuthorization(callback))
+    }
+
+    @Test fun receivedHttpErrorsRetainUnconsumedRefreshAndLearnedNonceDespiteMalformedOrOversizedBodies(): Unit = runBlocking {
+        for (status in listOf(400, 403, 503)) for (hasNonce in listOf(true, false)) for (oversized in listOf(true, false)) {
+            val f = Fixture()
+            val initial = f.login()
+            f.now += 120_000
+            var calls = 0
+            f.intercept = { request ->
+                if (request.url.encodedPath == "/oauth/token") {
+                    calls++
+                    json(if (oversized) "x".repeat(65_537) else "<html>temporary rejection</html>", status, if (hasNonce) "error-nonce" else null)
+                } else null
+            }
+            val failure = runCatching { f.authority().refresh(initial.session) }.exceptionOrNull()
+            assertNotNull(failure)
+            when {
+                !hasNonce -> assertTrue(failure is DpopNonceException)
+                oversized -> assertTrue(failure is IllegalArgumentException)
+                else -> assertEquals(status, (failure as OAuthResponseException).status)
+            }
+            assertEquals(1, calls) // Classification never authorizes an automatic retry.
+            assertEquals(initial, f.authority().currentAccount())
+            f.intercept = { request ->
+                if (request.url.encodedPath == "/oauth/token") {
+                    assertEquals(if (hasNonce) "error-nonce" else "token-1", f.proofs.last().second["nonce"]?.jsonPrimitive?.content)
+                    assertEquals("refresh-1", formDecode((request.body as TextContent).text)["refresh_token"])
+                }
+                null
+            }
+            f.authority().refresh(initial.session) // An explicit later operation uses durable state.
+            f.client.close()
+        }
+    }
+
+    @Test fun actualRefreshDeadlineAfter503HeadersRetainsCredentialAndNonceThenRethrowsOriginalTimeout(): Unit = runBlocking {
+        val f = Fixture()
+        val initial = f.login()
+        f.now += 120_000
+        val body = ByteChannel()
+        var calls = 0
+        f.intercept = { request ->
+            if (request.url.encodedPath == "/oauth/token") {
+                calls++
+                respond(body, HttpStatusCode.ServiceUnavailable,
+                    headersOf("Content-Type" to listOf("application/json"), "DPoP-Nonce" to listOf("timeout-error-nonce")))
+            } else null
+        }
+        try {
+            val failure = withTimeout(45_000) { assertFailsWith<TimeoutCancellationException> { f.authority().refresh(initial.session) } }
+            assertTrue(failure.message.orEmpty().contains("40000"))
+            assertEquals(1, calls)
+            assertEquals(initial, f.authority().currentAccount())
+            f.intercept = { request ->
+                if (request.url.encodedPath == "/oauth/token") {
+                    assertEquals("timeout-error-nonce", f.proofs.last().second["nonce"]?.jsonPrimitive?.content)
+                    assertEquals("refresh-1", formDecode((request.body as TextContent).text)["refresh_token"])
+                }
+                null
+            }
+            f.authority().refresh(initial.session)
+        } finally { body.close(); f.client.close() }
+    }
+
+    @Test fun nonceRetryCannotAttributeEarlierErrorHeadersToLaterUnknownStatusLoss(): Unit = runBlocking {
+        val f = Fixture()
+        val initial = f.login()
+        f.now += 120_000
+        var calls = 0
+        f.intercept = { request ->
+            if (request.url.encodedPath == "/oauth/token") {
+                if (++calls == 1) json("""{"error":"use_dpop_nonce"}""", 400, "challenge")
+                else throw IOException("second attempt lost before headers")
+            } else null
+        }
+        assertFailsWith<IOException> { f.authority().refresh(initial.session) }
+        assertEquals(2, calls)
+        assertFailsWith<IncompleteSessionUpdateException> { f.authority().currentAccount() }
+    }
+
+    @Test fun finalWriteFailureAfterAtomicReplacementNeverReplaysOldRefresh(): Unit = runBlocking {
+        val f = Fixture()
+        val initial = f.login()
+        f.now += 120_000
+        val files = JvmVaultPersistence(f.root)
+        var writes = 0
+        val afterReplacement = object : VaultPersistence by files {
+            override fun write(bytes: ByteArray) {
+                files.write(bytes)
+                if (++writes == 2) throw IOException("post-rename acknowledgement failed")
+            }
+        }
+        assertFailsWith<IOException> { f.authority(f.store(afterReplacement)).refresh(initial.session) }
+        assertEquals(initial, f.authority().currentAccount())
+        f.authority().createRecord(initial.session, "fm.teal.feed.play", record())
+        assertEquals(2, f.tokenRequests)
+        assertEquals(1, f.resourceRequests)
+    }
+
+    @Test fun newerAuthorizationWinsAgainstOlderExchangeAndDetachedGeneration(): Unit = runBlocking {
+        val f = Fixture()
+        val initial = f.login()
+        f.authority().beginAuthorization("alice.example")
+        val callback = f.callback()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var blockOnce = true
+        f.intercept = { request ->
+            if (request.url.encodedPath == "/oauth/token" && blockOnce) { blockOnce = false; entered.complete(Unit); release.await() }
+            null
+        }
+        val old = async { runCatching { f.authority().completeAuthorization(callback) } }
+        entered.await()
+        f.authority().beginAuthorization("alice.example")
+        val replacement = f.authority().completeAuthorization(f.callback())
+        release.complete(Unit)
+        assertTrue(old.await().exceptionOrNull() is StaleAuthorizationException)
+        assertNotEquals(initial.session, replacement.session)
+        assertEquals(replacement, f.authority().currentAccount())
+        assertFailsWith<StaleSessionException> { f.authority().createRecord(initial.session, "fm.teal.feed.play", record()) }
+        assertEquals(0, f.resourceRequests)
+    }
+
     @Test fun dualTargetProgressSurvivesPartialFailureAndRecreatedAuthoritySkipsAcknowledgedTarget(): Unit = runBlocking {
         val f = Fixture()
         f.tokenScope = SCOPE

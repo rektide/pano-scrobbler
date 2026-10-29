@@ -41,13 +41,17 @@ internal class DpopHttp(
         method: HttpMethod,
         server: DpopServer,
         accessToken: String? = null,
+        receivedStatus: (Int?) -> Unit = {},
         configure: HttpRequestBuilder.() -> Unit = {},
     ): BufferedHttpResponse {
         require(URI(url).scheme == "https" && URI(url).rawFragment == null) { "DPoP requests require HTTPS without a fragment" }
         repeat(2) { attempt ->
             val nonce = nonces.get(server, url)
             val proof = proofFactory.create(method.value, url, nonce, accessToken)
+            // A preceding nonce challenge says nothing about this next attempt's outcome.
+            receivedStatus(null)
             val response = httpClient.boundedRequest(64 * 1024, onHeaders = { status, headers ->
+                receivedStatus(status.value)
                 val received = headers.getAll("DPoP-Nonce")
                 if (received?.size != 1 || received.single().length !in 1..4096 || received.single().any {
                         it != '\u0021' && it !in '\u0023'..'\u005B' && it !in '\u005D'..'\u007E'
