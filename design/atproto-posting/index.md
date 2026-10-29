@@ -18,6 +18,9 @@ sources:
 
 ## Current contribution preparation
 
+- [Prepared contributions and operator brief](contribution0.gpt6a.md): current
+  feature-only and metadata bookmarks, architecture, exact verification bounds,
+  proposed PR descriptions and deliberate publication commands.
 - [Clean remake commission](remake0.gpt6a.md): current two-worker implementation
   effort, preserved source, new bookmarks, ticket ownership and architectural
   checkpoints, modeled on the newer Web Scrobbler `atproto` boundaries.
