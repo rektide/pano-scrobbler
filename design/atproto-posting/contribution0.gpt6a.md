@@ -124,6 +124,9 @@ UI certification**. Android API 24/25/current Keystore/provider/fsync/multiproce
 Windows/macOS and native-image behavior remain explicit qualification work.
 Relevant remaining tickets are `pano-atproto-remake-app-vault-native` and
 `pano-atproto-remake-metadata-deploy`.
+The implementation and contribution-preparation tickets are closed. The epic
+remains **blocked on its external gates**, rather than forcing it closed over an
+open deployment child.
 
 The final independent [UI-delta verdict](file:///home/rektide/src/pano-atproto-ui-review/design/atproto-posting/ui-review0.gpt61s.md),
 commit `a4c5dae47d3832deab7199d34e99ae488626e29e`, resolves F1/F2/F3 and
