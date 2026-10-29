@@ -533,7 +533,7 @@ fun AccountPref(
                                     dropdownShown = false
                                     Stuff.appScope.launch {
                                         if (type == AccountType.ATPROTO)
-                                            com.arn.scrobble.api.atproto.PanoAtProto.accounts.remove(userAccount)
+                                            com.arn.scrobble.api.atproto.PanoAtProto.accountActions.remove(userAccount)
                                         else Scrobblables.deleteAllByType(type)
                                     }
                                 }
@@ -563,12 +563,7 @@ fun AccountPref(
                                     dropdownShown = false
                                     Stuff.appScope.launch {
                                         if (type == AccountType.ATPROTO) {
-                                            val handle = userAccount.atProtoSession ?: return@launch
-                                            com.arn.scrobble.api.atproto.PanoAtProto.authority.publishAccount(handle) {
-                                                PlatformStuff.mainPrefs.updateData { prefs -> prefs.copy(scrobbleAccounts = prefs.scrobbleAccounts.map {
-                                                    if (it.atProtoSession == handle) it.copy(canScrobble = !it.canScrobble) else it
-                                                }) }
-                                            }
+                                            com.arn.scrobble.api.atproto.PanoAtProto.accountActions.setEnabled(userAccount, !userAccount.canScrobble)
                                             return@launch
                                         }
                                         PlatformStuff.mainPrefs.updateData { p ->

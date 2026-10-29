@@ -71,8 +71,13 @@ class AtProtoAccountAuthority internal constructor(
         store.publishAuthorization(attempt, discovered.identity.did, state, expiresAt, encode(pending))
         val endpoint = discovered.authorizationServer.authorizationEndpoint
         AuthorizationLaunch(endpoint + (if ('?' in endpoint) '&' else '?') + formEncode(
-            mapOf("client_id" to config.clientId, "request_uri" to par.requestUri)), expiresAt)
+            mapOf("client_id" to config.clientId, "request_uri" to par.requestUri)), expiresAt, attempt)
     }
+
+    /** A fresh locked read for browser dispatch only; callback validation/claims remain single-use. */
+    suspend fun isAuthorizationPending(launch: AuthorizationLaunch): Boolean =
+        launch.attempt.clientId == config.clientId && clock.millis() < launch.expiresAt &&
+            store.isAuthorizationPending(launch.attempt, clock.millis())
 
     /** Android deep links and desktop paste must enter this exact same URL validator. */
     suspend fun completeAuthorization(callbackUrl: String): AtProtoAccount {

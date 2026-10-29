@@ -34,7 +34,7 @@ fun AtProtoLoginScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
         catch (cause: CancellationException) { throw cause }
         catch (_: Exception) { targetError = true }
     }
-    LaunchedEffect(state.launch) { state.launch?.let {
+    LaunchedEffect(state.launch, state.busy, state.browserPending) { state.launch?.let {
         if (PanoAtProto.consumeBrowserLaunch(it)) PlatformStuff.openInBrowser(it.authorizationUrl)
     } }
     LaunchedEffect(state.completed) {
@@ -50,7 +50,9 @@ fun AtProtoLoginScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
         if (state.busy) CircularProgressIndicator()
         state.launch?.let { launch ->
             Text(stringResource(Res.string.atproto_waiting))
-            TextButton(onClick = { PlatformStuff.openInBrowser(launch.authorizationUrl) }) { Text(stringResource(Res.string.atproto_sign_in)) }
+            TextButton(enabled = !state.busy, onClick = { scope.launch {
+                if (PanoAtProto.reopenBrowserLaunch(launch)) PlatformStuff.openInBrowser(launch.authorizationUrl)
+            } }) { Text(stringResource(Res.string.atproto_sign_in)) }
         }
         PanoOutlinedTextField(callback, singleLine = true, label = { Text(stringResource(Res.string.atproto_callback)) },
             modifier = Modifier.fillMaxWidth().testTag("atproto_callback"))

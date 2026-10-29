@@ -40,29 +40,33 @@ import java.net.URLEncoder
 import java.nio.file.Files
 import kotlin.test.*
 
-private class MemoryPrefs : DataStore<MainPrefs> {
+internal class MemoryPrefs : DataStore<MainPrefs> {
     override val data = MutableStateFlow(MainPrefs())
     private val lock = Mutex()
     var fail = false
+    var failure: Exception? = null
     var writing = false
     var entered: CompletableDeferred<Unit>? = null
     var release: CompletableDeferred<Unit>? = null
     override suspend fun updateData(transform: suspend (MainPrefs) -> MainPrefs): MainPrefs = lock.withLock {
         entered?.complete(Unit)
         release?.await()
+        failure?.let { throw it }
         if (fail) throw IOException("projection persistence failed")
         writing = true
         try { transform(data.value).also { data.value = it } } finally { writing = false }
     }
 }
 
-private class AccountFixture {
+internal class AccountFixture : AutoCloseable {
     private val root = Files.createTempDirectory(File("build/atproto-test-vaults").also { it.mkdirs() }.toPath(), "projection-").toFile()
     val prefs = MemoryPrefs()
     val store = AtProtoAccountStore(JvmVaultPersistence(root), VaultCipher.Plaintext)
     var did = "did:plc:abcdefghijklmnopqrstuvwx"
     private var state = ""
     var tokens = 0
+    var parEntered: CompletableDeferred<Unit>? = null
+    var parRelease: CompletableDeferred<Unit>? = null
     var tokenEntered: CompletableDeferred<Unit>? = null
     var tokenRelease: CompletableDeferred<Unit>? = null
     val posts = mutableListOf<kotlinx.serialization.json.JsonObject>()
@@ -78,6 +82,8 @@ private class AccountFixture {
                 state = (request.body as TextContent).text.split('&').associate {
                     it.substringBefore('=') to URLDecoder.decode(it.substringAfter('='), "UTF-8")
                 }.getValue("state")
+                parEntered?.complete(Unit)
+                parRelease?.await()
                 """{"request_uri":"urn:fixture:request","expires_in":300}"""
             }
             path == "/token" -> {
@@ -106,6 +112,7 @@ private class AccountFixture {
         beginAuthorization("alice.example.com")
         completeAuthorization(callback(redirect))
     }
+    override fun close() = client.close()
 }
 
 class PanoAtProtoAccountsTest {
