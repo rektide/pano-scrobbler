@@ -59,6 +59,7 @@ internal data class StoredSession(
     val dpopKey: P256PrivateJwk,
     val token: AtProtoToken,
     val nonces: Map<String, String>,
+    val completedTargets: Map<String, Set<String>> = emptyMap(),
 ) {
     override fun toString() = "StoredSession(did=$did, credentials=<redacted>)"
 }
