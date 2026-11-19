@@ -39,6 +39,7 @@ material3 = "1.13.0-beta02"
 nanohttpd = "2.3.1"
 navigation3 = "1.2.0"
 navigation-event-android = "1.2.0"
+nimbus-jose-jwt = "10.10"
 okhttp = "5.5.1"
 paging = "3.5.3"
 play-publisher = "4.1.1"
@@ -80,6 +81,7 @@ ktor-client-auth = { module = "io.ktor:ktor-client-auth", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 nanohttpd = { module = "org.nanohttpd:nanohttpd", version.ref = "nanohttpd" }
+nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
 aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutlibraries" }
 test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso-core" }
 test-runner = { module = "androidx.test:runner", version.ref = "runner" }
@@ -138,5 +140,4 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "android-application" }
 graalvm-native = { id = "org.graalvm.buildtools.native", version.ref = "graalvm-native" }
 [bundles]
-
 

@@ -26,6 +26,9 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 
+# Nimbus's shaded Gson references this build-time-only annotation.
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
+
 # SIGSEGV https://issuetracker.google.com/issues/436756681
 -keep class okhttp3.internal.idn.IdnaMappingTable { *; }
 -keep class okhttp3.internal.idn.IdnaMappingTableInstanceKt{ *; }

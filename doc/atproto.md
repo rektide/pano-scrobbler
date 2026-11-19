@@ -6,6 +6,8 @@ resource: /doc/atproto.md
 status: development-preview
 generated: { by: "model:openai/gpt-6.1-sol#xhigh", at: 2026-10-29 }
 sources:
+  - resource: "opencode://ses_e0bde5971ffeS7fY8lQko616BA"
+    title: Compared JOSE bundle costs and migrated DPoP proof creation to Nimbus
   - resource: "opencode://ses_e7a8c4269ffe779uDSypDO914v"
     title: Rebased the combined metadata and native application submission and explicitly excluded radio station support
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
@@ -132,10 +134,11 @@ paths and query-bearing identities; that is a local supported-configuration poli
 
 ## Ownership and retry limits
 
-The application owns one Kotlin protocol path using the project's existing public
-Ktor, OkHttp, coroutines and serialization dependencies plus JCA. No unpublished
-AT Protocol library, Maven Local artifact, JavaScript runtime or backend selector
-is required. This also means the application owns protocol maintenance and tests.
+The application owns one Kotlin protocol path. Nimbus JOSE + JWT builds and signs
+DPoP proofs with JCA; Pano still owns AT Protocol discovery, nonce retries, and
+session handling. Stored DPoP keys keep the same P-256 JWK format. The full Nimbus
+OAuth/OIDC SDK is not required, nor is an unpublished AT Protocol library, Maven
+Local artifact, JavaScript runtime, or backend selector.
 
 One native vault owns credentials across UI/background processes. General
 preferences contain only account references/display data and destination choices.

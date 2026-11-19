@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.nimbus.jose.jwt)
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
 }
