@@ -1,0 +1,10 @@
+{
+  "reflection": [
+    {
+      "type": "java.util.HashMap",
+      "methods": [
+        { "name": "<init>", "parameterTypes": [] }
+      ]
+    }
+  ]
+}
