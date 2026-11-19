@@ -4,6 +4,8 @@ import com.arn.scrobble.atproto.crypto.P256PrivateJwk
 import com.arn.scrobble.atproto.crypto.toPublicKey
 import com.arn.scrobble.atproto.encoding.decodeBase64Url
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.security.Signature
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,13 +31,17 @@ class DpopProofTest {
                 Json.parseToJsonElement("""{"typ":"dpop+jwt","alg":"ES256","jwk":{"kty":"EC","crv":"P-256","x":"${key.x}","y":"${key.y}"}}"""),
                 Json.parseToJsonElement(header.decodeBase64Url().decodeToString()),
             )
-            val claims = """"jti":"proof-${index + 1}","htm":"POST","htu":"https://example.com/xrpc/example","iat":1700000000"""
-            val extras = if (index == 0) "" else
-                ""","nonce":"server-nonce","ath":"Pxa-1wifRlPl7yG_0oJNfzqq7MelmOfonFgOFgapzFI"""
-            assertEquals(
-                Json.parseToJsonElement("{$claims$extras}"),
-                Json.parseToJsonElement(payload.decodeBase64Url().decodeToString()),
-            )
+            val claims = buildJsonObject {
+                put("jti", "proof-${index + 1}")
+                put("htm", "POST")
+                put("htu", "https://example.com/xrpc/example")
+                put("iat", 1_700_000_000)
+                if (index == 1) {
+                    put("nonce", "server-nonce")
+                    put("ath", "Pxa-1wifRlPl7yG_0oJNfzqq7MelmOfonFgOFgapzFI")
+                }
+            }
+            assertEquals(claims, Json.parseToJsonElement(payload.decodeBase64Url().decodeToString()))
             val signatureBytes = signature.decodeBase64Url()
             assertEquals(64, signatureBytes.size)
             // Verify independently of Nimbus using the JVM's native JOSE-format support.
