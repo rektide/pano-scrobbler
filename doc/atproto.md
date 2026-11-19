@@ -140,6 +140,11 @@ session handling. Stored DPoP keys keep the same P-256 JWK format. The full Nimb
 OAuth/OIDC SDK is not required, nor is an unpublished AT Protocol library, Maven
 Local artifact, JavaScript runtime, or backend selector.
 
+In a local `assembleReleaseGithub` comparison against `9554747c`, the Nimbus
+change added about 64 KiB (0.68%) to the minified unsigned APK, including about
+58 KiB of DEX. This is an APK file-size measurement, not a Play download or a
+desktop package measurement.
+
 One native vault owns credentials across UI/background processes. General
 preferences contain only account references/display data and destination choices.
 Android encrypts the no-backup vault with a Keystore key. Desktop storage is
