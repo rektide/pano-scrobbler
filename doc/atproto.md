@@ -6,6 +6,8 @@ resource: /doc/atproto.md
 status: development-preview
 generated: { by: "model:openai/gpt-6.1-sol#xhigh", at: 2026-10-29 }
 sources:
+  - resource: "opencode://ses_e7a8c4269ffe779uDSypDO914v"
+    title: Rebased the combined metadata and native application submission and explicitly excluded radio station support
   - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
     title: Implemented and tested the native account/provider/UI prefix and recorded its remaining qualification gates
   - resource: "opencode://ses_e7aedded3ffe8r5OwrYTHwM2nl"
@@ -42,11 +44,9 @@ sources:
 
 # Native AT Protocol scrobbling
 
-**Development preview:** native login and completed-play delivery are implemented,
-including strict key, identity, discovery, permission and record validation.
-Protocol and native app integration are qualified through synthetic host tests and
-Android debug builds. This is **not** Android runtime, device or real-account
-certification; those release gates remain separate.
+**Development preview:** native sign-in and completed-play delivery to Rocksky
+and Teal. This integration adds no radio station support: no station connectors,
+station discovery, or station metadata in AT Protocol records.
 
 ## Use
 
@@ -105,16 +105,22 @@ scope:        atproto repo:fm.teal.feed.play?action=create repo:app.rocksky.scro
 ```
 
 The public metadata URL must be deployed before production-identity login can
-work. App compilation does not deploy it. Metadata changes are an independent PR.
+work. The existing static-site workflow includes `oauth-client-metadata.json`
+in the Pages artifact. Merging or compiling the app does not deploy it; a
+maintainer must run the workflow and verify that the URL serves the JSON without
+redirecting.
 
 Supply **both** development values, through environment or ignored
 `local.properties` (`atproto.clientId`, `atproto.redirectUri`):
 
 ```sh
-PANO_ATPROTO_CLIENT_ID=https://rektide.github.io/pano-scrobbler/oauth-client-metadata.json \
-PANO_ATPROTO_REDIRECT_URI=io.github.rektide:/pano-scrobbler/oauth/callback \
+PANO_ATPROTO_CLIENT_ID="$DEV_CLIENT_ID" \
+PANO_ATPROTO_REDIRECT_URI="$DEV_REDIRECT_URI" \
 bash gradlew :androidApp:assembleDebug
 ```
+
+Use your own hosted native OAuth metadata and its matching callback URI for the
+development pair.
 
 The build validates the pair and uses it for generated constants and the Android
 callback scheme. The complete URI is checked again by the shared authority.
@@ -168,7 +174,7 @@ and final success before Pano clears its pending play retain duplicate windows;
 this is **not exactly-once delivery**. A bounded journal allows 128 unfinished
 plays per session and does not silently prune them.
 
-## Contributor checks and PR outlines
+## Contributor checks
 
 ```sh
 bash gradlew :atproto:test :composeApp:jvmTest :androidApp:assembleDebug --continue
@@ -181,26 +187,7 @@ bash gradlew :atproto:test :composeApp:jvmTest \
   --tests 'com.arn.scrobble.api.atproto.*' :androidApp:assembleDebug
 ```
 
-The UI-corrected prefix passes **34 affected storage/OAuth module tests and all
-34 AT Protocol app tests**; Android debug APK assembly succeeds. The prior complete
-module receipt was **96/96**; unaffected checks were not repeated for this UI delta.
-The last full app suite, before this correction, was **26/27 passing**, with only
-the known `MaiTest.parseYoutubeTitles` upstream trailing-space assertion failure.
-The unfiltered `--continue` command includes that unrelated baseline failure.
 Host tests/builds do not qualify Android Keystore/API 24/25 runtime, interactive
 UI/device behavior, desktop native images, Windows/macOS providers, real
 authorization or service indexing. Deployment and platform-runtime evidence are
-still needed before treating these local results as release qualification.
-
-1. **Application PR:** one public-dependency `:atproto` implementation, native
-   vault/transport, account/provider/UI integration, tests and this guide. Explain
-   completed-only capabilities, credential ownership, grant selection and retry
-   limitations and the one-shot engine boundary with its real-wire regressions.
-   Exclude private configuration, credentials and local research/probes; this
-   guide's source links refer only to feature files included in that PR.
-2. **Metadata/Pages PR:** public native OAuth metadata JSON and deterministic Pages
-   artifact inclusion only. Match the client/callback/scope above; explain that
-   deployment precedes production login. Keep operator runbooks/research separate
-   from that minimal code change.
-
-Neither outline authorizes pushing, PR creation, deployment or real-account writes.
+still needed before release.
