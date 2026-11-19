@@ -27,7 +27,9 @@ actual fun NavFromOutsideEffect(
         }
 
         activity?.intent?.let {
-            if (!activityRestored)
+            // Pending OAuth state is durable; a recreated process must still reach the
+            // exact shared callback validator. Duplicate delivery cannot exchange twice.
+            if (!activityRestored || it.data?.scheme == com.arn.scrobble.BuildKonfig.ATPROTO_REDIRECT_SCHEME)
                 consumer.accept(it)
         }
 

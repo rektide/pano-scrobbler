@@ -1,0 +1,193 @@
+---
+type: Contributor guide
+title: Native AT Protocol scrobbling
+description: Native Rocksky and Teal authorization, completed-play delivery, development identity configuration and contribution boundaries.
+resource: /doc/atproto.md
+status: development-preview
+generated: { by: "model:openai/gpt-6.1-sol#xhigh", at: 2026-10-29 }
+sources:
+  - resource: "opencode://ses_e7a8c4269ffe779uDSypDO914v"
+    title: Rebased the combined metadata and native application submission and explicitly excluded radio station support
+  - resource: "opencode://ses_e7b1c1da4ffeyw8XS4l257gfAC"
+    title: Implemented and tested the native account/provider/UI prefix and recorded its remaining qualification gates
+  - resource: "opencode://ses_e7aedded3ffe8r5OwrYTHwM2nl"
+    title: Integrated portable validation and one-shot transport, corrected lifecycle failures, and qualified native login and reference recovery through host tests and Android builds
+  - resource: "opencode://ses_e7af14a6cffeDevLvL0joxsto6"
+    title: Implemented the public one-shot OkHttp body policy and real-wire replay, nonce retry and proxy CONNECT regressions
+  - resource: "opencode://ses_e7ac533aeffebK2LtBfRou0pzm"
+    title: Corrected bounded callback delivery, native-correlated browser commands, timeout cleanup and preference action errors with actual-controller and vault regressions
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/PanoAtProto.kt
+    title: Shared native authority and client identity
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/onboarding/AtProtoLoginScreen.kt
+    title: Browser approval, paste fallback and granted destination controls
+  - resource: /atproto/src/main/kotlin/com/arn/scrobble/atproto/oauth/AtProtoAccountAuthority.kt
+    title: Locked token lifecycle, record boundary and target acknowledgement
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/AtProtoLogin.kt
+    title: Generation-specific completion, duplicate callback coordination and explicit publication retry
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/PanoAtProtoAccountsTest.kt
+    title: Actual-vault application qualification with synthetic HTTP and preference failures
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoLoginUiTest.kt
+    title: Callback ownership, browser expiry and invalidation, real PAR timeout and preference action cancellation/retry checks
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/AtProtoAccountActions.kt
+    title: Actual preference removal and enable action error/snackbar boundaries
+  - resource: /atproto/src/main/kotlin/com/arn/scrobble/atproto/posting/Records.kt
+    title: Separate bounded Teal and Rocksky record mapping and duration units
+  - resource: /composeApp/src/commonMain/kotlin/com/arn/scrobble/api/atproto/AtProtoTransport.kt
+    title: Dedicated redirect-free transport and transparent one-shot body policy
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoTransportReplayTest.kt
+    title: Real HTTP 503 and 408 POST delivery without hidden replay or response rewriting
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoProtocolTransportTest.kt
+    title: Real native protocol adapter retains bounded nonce retry with fresh proofs
+  - resource: /composeApp/src/jvmTest/kotlin/com/arn/scrobble/api/atproto/AtProtoProxyTransportTest.kt
+    title: HTTPS proxy CONNECT authentication precedes TLS and origin credentials
+---
+
+# Native AT Protocol scrobbling
+
+**Development preview:** native sign-in and completed-play delivery to Rocksky
+and Teal. This integration adds no radio station support: no station connectors,
+station discovery, or station metadata in AT Protocol records.
+
+## Use
+
+Choose **AT Protocol (Rocksky / Teal)** in onboarding or service preferences.
+Enter a handle or DID and approve in your external browser. Android receives the
+native callback; desktop users can paste the **complete callback URL** into the
+login screen. Never share that URL or put it in a bug report.
+
+Automatic browser opening is claimed once per launch. Returning to the login
+screen does not automatically reopen an earlier approval request; the waiting
+screen retains a button for explicit browser reopening. Both dispatch paths check
+that the attempt is still current and unexpired in the native vault. Logout,
+matching account removal or a newer attempt invalidates the old command; an
+already-open external browser cannot be recalled.
+
+Callbacks use the same native validator whether received or pasted. Identical
+in-flight deliveries are deduplicated; up to four distinct deliveries wait behind
+the current operation. Overflow asks for explicit redelivery. An unrelated invalid
+callback does not discard a new login's launch. Timeout/cancellation releases UI
+busy state so you can explicitly start a new attempt; it never replays a code exchange.
+
+Pano keeps one AT Protocol account. Reauthorization replaces its login generation;
+same-account destination choices and its enabled/disabled setting are preserved.
+Service preferences → **Completed-play destinations / sign in** lets you select
+Teal and Rocksky independently. A target must also have been granted by OAuth;
+a preference cannot create permission. Selecting neither target submits nothing.
+
+Only **completed plays** are sent. Teal duration is in seconds; Rocksky duration
+is in milliseconds. There are no now-playing records, remote history/chart/social
+reads, artwork enrichment, love/unlove or delete operations. Unsupported controls
+are hidden; the empty remote-history view is not a failed indexing check.
+
+Logout removes local authorization before best-effort remote revocation. A failed
+account-reference write cannot make removed credentials usable. If authorization
+was saved but account publication failed, the screen offers a retry tied to that
+specific generation; it does not replay the callback code.
+
+Removing an account from preferences targets the reference you clicked, not a
+newer login that replaced it while the screen was open. After switching build
+identity, sign in afresh. You may explicitly remove the old displayed reference
+and its old-client authorization; nothing is automatically migrated or pruned.
+If removal of the display reference fails, authorization is already removed;
+retry the explicit removal. Preference removal and enable/disable errors are
+reported without raw exception or callback details; a stale toggle cannot change
+a replacement login. A corrupt vault or missing encryption key fails
+closed rather than silently resetting credentials.
+
+## Client identity and development
+
+Production identity:
+
+```text
+client_id:    https://kawaiidango.github.io/pano-scrobbler/oauth-client-metadata.json
+redirect_uri: io.github.kawaiidango:/pano-scrobbler/oauth/callback
+scope:        atproto repo:fm.teal.feed.play?action=create repo:app.rocksky.scrobble?action=create
+```
+
+The public metadata URL must be deployed before production-identity login can
+work. The existing static-site workflow includes `oauth-client-metadata.json`
+in the Pages artifact. Merging or compiling the app does not deploy it; a
+maintainer must run the workflow and verify that the URL serves the JSON without
+redirecting.
+
+Supply **both** development values, through environment or ignored
+`local.properties` (`atproto.clientId`, `atproto.redirectUri`):
+
+```sh
+PANO_ATPROTO_CLIENT_ID="$DEV_CLIENT_ID" \
+PANO_ATPROTO_REDIRECT_URI="$DEV_REDIRECT_URI" \
+bash gradlew :androidApp:assembleDebug
+```
+
+Use your own hosted native OAuth metadata and its matching callback URI for the
+development pair.
+
+The build validates the pair and uses it for generated constants and the Android
+callback scheme. The complete URI is checked again by the shared authority.
+Android cannot enforce a hostless single-slash URI's path with a host/path filter;
+the callback has its own scheme-only filter, separate from `pano-scrobbler://screen`.
+Changing client identity requires fresh authorization, not reusing another
+client's vault entry. Local configuration additionally rejects encoded metadata
+paths and query-bearing identities; that is a local supported-configuration policy.
+
+## Ownership and retry limits
+
+The application owns one Kotlin protocol path using the project's existing public
+Ktor, OkHttp, coroutines and serialization dependencies plus JCA. No unpublished
+AT Protocol library, Maven Local artifact, JavaScript runtime or backend selector
+is required. This also means the application owns protocol maintenance and tests.
+
+One native vault owns credentials across UI/background processes. General
+preferences contain only account references/display data and destination choices.
+Android encrypts the no-backup vault with a Keystore key. Desktop storage is
+owner-private **plaintext**, not an OS keychain. Supported-platform runtime
+qualification remains separate from source inspection and host tests.
+
+The dedicated client retains Pano's normal TLS, proxy, user-agent and timeout
+policy. Current credential-bearing POST bodies are one-shot at the real OkHttp
+boundary, preventing hidden follow-up replay (including HTTP 503 with
+`Retry-After: 0`) without buffering or rewriting responses. Explicit protocol
+nonce retries construct a new request and fresh proof. This is not a general
+one-attempt guarantee for arbitrary bodyless GETs, future middleware or engines.
+
+Requests use fresh generation-scoped credentials under the OS lock. A rotating
+refresh is durably finished before releasing it; ambiguous response/persistence
+loss quarantines the old credential rather than replaying it. `expires_in` may
+be absent: its expiry stays unknown, without decoding the opaque token or claiming
+it is forever valid. An exact DPoP `invalid_token` rejection permits one forced
+refresh and request retry. Ordinary 401s/network failures never authorize replay.
+Received HTTP errors retain proven-unconsumed refresh state and learned nonces,
+then still report the original failure or timeout. Invalid successful token data
+and loss before any status remain conservative. A failed post-replacement disk
+acknowledgement can leave either a quarantine marker or the valid new credential,
+not a promise that the old credential is usable.
+
+Metadata is bounded and checked for valid Unicode before truncation. The complete
+serialized `createRecord` request, including wrapper fields and escaping, has a
+local 64 KiB ceiling. Returned record locations must match the account and target;
+record CIDs must parse as canonical CIDv1/DAG-CBOR/SHA-256. These are typed response
+checks, **not** content-hash, commit-signature or repository verification.
+
+Each successful destination is durably acknowledged before the next is sent.
+Partial retry skips acknowledged targets. PDS success before local acknowledgement
+and final success before Pano clears its pending play retain duplicate windows;
+this is **not exactly-once delivery**. A bounded journal allows 128 unfinished
+plays per session and does not silently prune them.
+
+## Contributor checks
+
+```sh
+bash gradlew :atproto:test :composeApp:jvmTest :androidApp:assembleDebug --continue
+```
+
+For the scoped AT Protocol checks without unrelated app tests:
+
+```sh
+bash gradlew :atproto:test :composeApp:jvmTest \
+  --tests 'com.arn.scrobble.api.atproto.*' :androidApp:assembleDebug
+```
+
+Host tests/builds do not qualify Android Keystore/API 24/25 runtime, interactive
+UI/device behavior, desktop native images, Windows/macOS providers, real
+authorization or service indexing. Deployment and platform-runtime evidence are
+still needed before release.

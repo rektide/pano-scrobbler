@@ -512,6 +512,10 @@ fun AccountPref(
                                 dropdownShown = false
                             }
                         ) {
+                            if (type == AccountType.ATPROTO) item(
+                                text = { Text("Completed-play destinations / sign in") },
+                                onClick = { dropdownShown = false; onNavigate(PanoRoute.LoginAtProto) },
+                            )
                             item(
                                 text = {
                                     Text(
@@ -529,7 +533,9 @@ fun AccountPref(
                                 onClick = {
                                     dropdownShown = false
                                     Stuff.appScope.launch {
-                                        Scrobblables.deleteAllByType(type)
+                                        if (type == AccountType.ATPROTO)
+                                            com.arn.scrobble.api.atproto.PanoAtProto.accountActions.remove(userAccount)
+                                        else Scrobblables.deleteAllByType(type)
                                     }
                                 }
                             )
@@ -557,6 +563,10 @@ fun AccountPref(
                                 onClick = {
                                     dropdownShown = false
                                     Stuff.appScope.launch {
+                                        if (type == AccountType.ATPROTO) {
+                                            com.arn.scrobble.api.atproto.PanoAtProto.accountActions.setEnabled(userAccount, !userAccount.canScrobble)
+                                            return@launch
+                                        }
                                         PlatformStuff.mainPrefs.updateData { p ->
                                             val accounts =
                                                 p.scrobbleAccounts.filter { it.type != type } +

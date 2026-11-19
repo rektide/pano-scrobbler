@@ -2,6 +2,8 @@ package com.arn.scrobble.api
 
 import co.touchlab.kermit.Logger
 import com.arn.scrobble.BuildKonfig
+import com.arn.scrobble.api.atproto.atProtoCredentialPolicy
+import com.arn.scrobble.atproto.http.AtProtoHttpClientPool
 import com.arn.scrobble.api.cache.HttpMemoryCache
 import com.arn.scrobble.api.cache.HybridCacheStorage
 import com.arn.scrobble.api.deezer.DeezerRequester
@@ -92,7 +94,9 @@ object Requesters {
 
     val lastfmUnauthedRequester by lazy { LastFmUnauthedRequester() }
 
-    private fun createBaseKtorClient(trustAll: Boolean) = invalidatableLazy {
+    private fun createBaseKtorClient(trustAll: Boolean) = invalidatableLazy { buildBaseKtorClient(trustAll) }
+
+    private fun buildBaseKtorClient(trustAll: Boolean, credentialTraffic: Boolean = false): HttpClient =
         HttpClient(OkHttp) {
             val proxyVal = proxy.value
 
@@ -172,11 +176,16 @@ object Requesters {
             install(UserAgent) {
                 agent = BuildKonfig.APP_NAME + " " + BuildKonfig.VER_NAME
             }
+
+            if (credentialTraffic) atProtoCredentialPolicy()
         }
-    }
 
     private val _baseKtorClient = createBaseKtorClient(false)
     val baseKtorClient by _baseKtorClient
+
+    // Separate engine/response policy, same proxy, TLS, timeout and user agent as baseKtorClient.
+    // Leases defer close until complete protocol operations release the old proxy generation.
+    internal val atProtoHttpClients = AtProtoHttpClientPool { buildBaseKtorClient(false, credentialTraffic = true) }
 
     private fun createGenericKtorClient(trustAll: Boolean) = invalidatableLazy {
         val baseClient = if (trustAll) {
@@ -230,6 +239,7 @@ object Requesters {
     val genericKtorTrustAllClient by _genericKtorTrustAllClient
 
     private fun invalidateAll() {
+        atProtoHttpClients.invalidate()
         _baseKtorClient.invalidate()
         _genericKtorClient.invalidate()
         _genericKtorTrustAllClient.invalidate()

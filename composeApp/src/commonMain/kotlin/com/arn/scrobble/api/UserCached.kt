@@ -1,6 +1,8 @@
 package com.arn.scrobble.api
 
 import com.arn.scrobble.api.lastfm.User
+import com.arn.scrobble.atproto.storage.SessionHandle
+import com.arn.scrobble.atproto.posting.AtProtoTarget
 import com.arn.scrobble.utils.Stuff
 import kotlinx.serialization.Serializable
 
@@ -44,6 +46,8 @@ data class UserAccountSerializable(
     val apiRoot: String? = null,
     val tlsTrustAll: Boolean = false,
     val canScrobble: Boolean = true,
+    val atProtoSession: SessionHandle? = null,
+    val atProtoTargets: Set<AtProtoTarget> = AtProtoTarget.entries.toSet(),
 )
 
 @Serializable
