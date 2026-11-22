@@ -1,5 +1,7 @@
 package com.arn.scrobble.ui
 
+import pano_scrobbler.composeapp.generated.resources.atproto
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -1184,6 +1186,7 @@ fun accountTypeStringRes(accountType: AccountType): Pair<StringResource, StringR
 
         AccountType.PLEROMA -> Res.string.pleroma
         AccountType.FILE -> Res.string.scrobble_to_file
+        AccountType.ATPROTO -> Res.string.atproto
     }
 
     val formatRes = when (accountType) {

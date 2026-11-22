@@ -78,3 +78,28 @@ release.storePassword=
   `./gradlew desktopApp:packageNativeImage`
 
 - **Info**: the desktop build includes no non-free dependencies.
+
+### AT Protocol development preview
+
+In onboarding or service preferences, choose **AT Protocol (Rocksky / Teal)**,
+enter a handle or DID, and approve in the browser. Android receives the callback;
+on desktop, paste the complete callback URL into Pano. Treat that URL as a
+credential and do not share it. The integration sends completed plays only, to
+the destinations the user authorized and enabled. It does not provide history,
+now playing, or radio support, and interrupted submissions can produce duplicates.
+
+Production sign-in requires the static-site workflow to deploy
+[`oauth-client-metadata.json`](oauth-client-metadata.json). Verify that the exact
+`client_id` URL returns the JSON with HTTP 200 and no redirect before shipping.
+To test with your own hosted metadata and its matching callback, set both
+`PANO_ATPROTO_CLIENT_ID` and `PANO_ATPROTO_REDIRECT_URI` (or both `atproto.clientId`
+and `atproto.redirectUri` in `local.properties`). Changing identity requires
+signing in again. Android uses a Keystore-backed vault; the desktop vault is
+owner-private plaintext, not an OS keychain.
+
+```sh
+./gradlew :atproto:test :composeApp:jvmTest --tests 'com.arn.scrobble.api.atproto.*' :androidApp:assembleDebug
+```
+
+Host tests and a successful build do not verify device login, packaged desktop
+runtime behavior, or indexing by Rocksky or Teal.

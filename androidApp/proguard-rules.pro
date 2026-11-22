@@ -28,6 +28,9 @@
 # landed up in build/outputs/mapping/releaseGithub/missing_rules.txt
 -dontwarn java.lang.Runtime$Version
 
+# Nimbus's shaded Gson references this build-time-only annotation.
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
+
 # SIGSEGV https://issuetracker.google.com/issues/436756681
 -keep class okhttp3.internal.idn.IdnaMappingTable { *; }
 -keep class okhttp3.internal.idn.IdnaMappingTableInstanceKt{ *; }
