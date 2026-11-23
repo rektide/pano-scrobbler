@@ -44,7 +44,7 @@ echo '#!/bin/bash
 APP="$1"
 sleep 3
 "$APP" &' > "$libExecDir/relaunch.sh"
-chmod +x "$libExecDir/relaunch.sh"
+chmod 755 "$libExecDir/relaunch.sh"
 
 # LICENSE
 install -d "$appDir/usr/share/licenses/$appNameWithoutSpaces"
@@ -61,13 +61,14 @@ for f in "$appDir/usr/share/icons/hicolor/scalable/apps/"*.svg; do
   mv -- "$f" "${f%.svg}-appimage.svg"
 done
 
-cp "$appDir/usr/share/icons/hicolor/scalable/apps/"*.svg "$appDir/"
-cp "$pngIconPath" "$appDir/.DirIcon"
+install -m644 -t "$appDir" "$appDir/usr/share/icons/hicolor/scalable/apps/"*.svg
+install -m644 "$pngIconPath" "$appDir/.DirIcon"
 
 # Desktop file
 desktopFile="$libExecDir/$appNameWithoutSpaces.desktop"
 sed -i -e "s/^Icon=.*/Icon=$appNameWithoutSpaces-appimage/" "$desktopFile"
 sed -e "s/^Exec=.*/Exec=AppRun %u/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
+chmod 644 "$appDir/$appNameWithoutSpaces.desktop"
 install -d "$appDir/usr/share/applications/"
 mv "$desktopFile" "$appDir/usr/share/applications/"
 
