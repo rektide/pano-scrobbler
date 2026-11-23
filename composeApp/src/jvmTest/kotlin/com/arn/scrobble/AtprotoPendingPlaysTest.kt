@@ -138,10 +138,15 @@ class AtprotoPendingPlaysTest {
             assertEquals(3, fixture.posts.size)
         }
 
-        sessions.connect(fixture.session(otherDid), user, types)
+        prefs.updateData { it.copy(atprotoSession = null) }
         Room.databaseBuilder<PanoDb>(path).setDriver(BundledSQLiteDriver()).build().use { db ->
             val dao = db.getPendingScrobblesDao()
             val sender = AtprotoPendingPlays(dao, prefs) { http }
+            assertFalse(sender.drain(10))
+            assertEquals(3, fixture.posts.size)
+            assertTrue(dao.allScrobblesForSubmission(10).all { it.atprotoDid == did })
+
+            sessions.connect(fixture.session(otherDid), user, types)
             assertFalse(sender.drain(10))
             assertEquals(3, fixture.posts.size)
             sessions.connect(fixture.session(did), user, types)
@@ -200,7 +205,7 @@ class AtprotoPendingPlaysTest {
             assertEquals(setOf(AccountType.ROCKSKY), pending.services)
             assertNotNull(pending.tealCid)
             assertEquals(1, fixture.rotations.get())
-            assertEquals("active", (prefs.data.first().atprotoSession as AtprotoAppPasswordSession).accessJwt)
+            assertEquals("active", prefs.data.first().atprotoSession?.accessJwt)
             assertNull(prefs.data.first().atprotoRotation)
         }
     }

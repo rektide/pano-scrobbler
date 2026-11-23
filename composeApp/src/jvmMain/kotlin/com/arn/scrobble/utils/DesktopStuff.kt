@@ -3,7 +3,6 @@ package com.arn.scrobble.utils
 import co.touchlab.kermit.Logger
 import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.automation.Automation
-import com.arn.scrobble.onboarding.DesktopOAuthHandoff
 import java.io.File
 import java.net.URI
 import java.net.URISyntaxException
@@ -26,10 +25,6 @@ object DesktopStuff {
         File(ProcessHandle.current().info().command().get()).parentFile.absolutePath
 
     val appDataRoot: File by lazy { getDataDir() }
-
-    val xdgDataHome: File
-        get() = File(System.getenv("XDG_DATA_HOME")?.ifEmpty { null }
-            ?: (System.getProperty("user.home") + "/.local/share"))
 
     val webViewDir by lazy {
         File(appDataRoot, "webview").also { it.mkdirs() }
@@ -82,7 +77,7 @@ object DesktopStuff {
                 }
 
                 else -> {
-                    println("Unknown argument ignored")
+                    println("Unknown argument ignored: ${args[index]}")
                 }
             }
             index++
@@ -106,7 +101,10 @@ object DesktopStuff {
                     ?: System.getProperty("user.home")
             }
 
-            IS_LINUX -> xdgDataHome.path
+            IS_LINUX -> {
+                System.getenv("XDG_DATA_HOME")?.ifEmpty { null }
+                    ?: (System.getProperty("user.home") + "/.local/share")
+            }
 
             else -> {
                 throw IllegalStateException("Unsupported OS")
@@ -180,7 +178,8 @@ object DesktopStuff {
         if (!IS_LINUX || appImagePath.isNullOrEmpty() || appDir.isNullOrEmpty())
             return
 
-        val dataHome = xdgDataHome
+        val dataHome = System.getenv("XDG_DATA_HOME")?.ifEmpty { null }
+            ?: (System.getProperty("user.home") + "/.local/share")
 
         // Icon
         val iconSrc = File(appDir, "usr/share/icons/hicolor/scalable")
@@ -201,26 +200,22 @@ object DesktopStuff {
         val desktopDest = File(dataHome, "applications/$appNameWithoutSpaces.desktop")
         desktopDest.parentFile.mkdirs()
         val desktopContent = desktopSrc.readText()
-            .replace(Regex("^Exec=.*$", RegexOption.MULTILINE)) {
-                "Exec=${DesktopOAuthHandoff.desktopExecArgument(appImagePath)} %u"
-            }
+            .replace(Regex("^Exec=.*$", RegexOption.MULTILINE), "Exec=\"$appImagePath\" %U")
         desktopDest.writeText(desktopContent)
-        DesktopOAuthHandoff.updateDesktopDatabase(desktopDest.parentFile)
     }
 
     fun migrateAppImageDesktopFile() {
         val appImagePath = System.getenv("APPIMAGE") ?: return
 
-        val dataHome = xdgDataHome
+        val dataHome = System.getenv("XDG_DATA_HOME")?.ifEmpty { null }
+            ?: (System.getProperty("user.home") + "/.local/share")
 
         val desktopDest = File(dataHome, "applications/$appNameWithoutSpaces.desktop")
 
         if (!desktopDest.exists()) return
 
         val desktopContent = desktopDest.readText()
-        if ((appImagePath in desktopContent || DesktopOAuthHandoff.desktopExecArgument(appImagePath) in desktopContent) &&
-            ("Icon=$appNameWithoutSpaces\n" in desktopContent ||
-                "x-scheme-handler/${DesktopOAuthHandoff.scheme};" !in desktopContent))
+        if (appImagePath in desktopContent && "Icon=$appNameWithoutSpaces\n" in desktopContent)
             addAppImageToAppLauncher()
     }
 

@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,23 +54,19 @@ internal fun AtprotoLoginScreen(
     viewModel: AtprotoLoginViewModel = viewModel { AtprotoLoginViewModel() },
 ) {
     val connection by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection }
-    val needsReconnect by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection != null && it.atprotoSession == null }
     val hasScrobbler by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccount != null }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var replacing by rememberSaveable(connection) { mutableStateOf(false) }
-    val handle = rememberTextFieldState(connection?.handle.orEmpty())
+    var replacing by rememberSaveable(connection?.did) { mutableStateOf(false) }
+    val handle = key(connection?.did) { rememberTextFieldState(connection?.handle.orEmpty()) }
     // Passwords must never go into saved instance state (including Navigation's saved state).
     val password = remember { TextFieldState() }
-    val callback = remember { TextFieldState() }
-    var showCallbackFallback by remember(state.awaitingBrowser) { mutableStateOf(false) }
-    var teal by rememberSaveable(connection) { mutableStateOf(connection?.destinations?.contains(AccountType.TEAL) ?: true) }
-    var rocksky by rememberSaveable(connection) { mutableStateOf(connection?.destinations?.contains(AccountType.ROCKSKY) ?: true) }
+    var teal by rememberSaveable(connection?.destinations) { mutableStateOf(connection?.destinations?.contains(AccountType.TEAL) ?: true) }
+    var rocksky by rememberSaveable(connection?.destinations) { mutableStateOf(connection?.destinations?.contains(AccountType.ROCKSKY) ?: true) }
     val destinations = buildSet {
         if (teal) add(AccountType.TEAL)
         if (rocksky) add(AccountType.ROCKSKY)
     }
-    val canSignIn = !state.busy && handle.text.isNotBlank() && destinations.isNotEmpty()
-    val canSubmit = canSignIn && password.text.isNotBlank()
+    val canSubmit = !state.busy && handle.text.isNotBlank() && destinations.isNotEmpty() && password.text.isNotBlank()
     fun submit() {
         if (canSubmit) {
             viewModel.signInWithPassword(handle.text.toString(), password.text.toString(), destinations)
@@ -85,24 +82,15 @@ internal fun AtprotoLoginScreen(
         }
     }
 
-    LaunchedEffect(viewModel) {
-        for (url in AtprotoOAuthCallback.inbox) {
-            viewModel.finishBrowserSignIn(url, fromBrowser = true)
-        }
-    }
-
-    LaunchedEffect(state.awaitingBrowser) {
-        if (!state.awaitingBrowser) callback.clearText()
-    }
-
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = modifier.testTagsAsResId()) {
         val connected = connection
         if (connected != null) {
-            Text(stringResource(Res.string.atproto_connected, connected.handle), style = MaterialTheme.typography.titleMedium)
+            val status = if (connected.needsReconnect) Res.string.atproto_reconnect_needed else Res.string.atproto_connected
+            Text(stringResource(status, connected.handle), style = MaterialTheme.typography.titleMedium)
             val labels = connected.destinations.map { accountTypeLabel(it) }
             Text(stringResource(Res.string.atproto_destinations) + ": " + labels.joinToString(", "))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!replacing) {
+                if (!replacing && !connected.needsReconnect) {
                     FilledTonalButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = { replacing = true }) {
                         Text(stringResource(Res.string.atproto_sign_in_again))
                     }
@@ -118,50 +106,9 @@ internal fun AtprotoLoginScreen(
             }
         }
 
-        if (needsReconnect) {
-            connection?.let { Text(stringResource(Res.string.atproto_reconnect_needed, it.handle)) }
-        }
         Text(stringResource(Res.string.atproto_sign_in_only), style = MaterialTheme.typography.bodyMedium)
 
-        if (state.awaitingBrowser) {
-            Text(stringResource(Res.string.atproto_waiting_for_browser))
-            if (PlatformStuff.isDesktop) {
-                TextButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = viewModel::reopenBrowser) {
-                    Text(stringResource(Res.string.atproto_reopen_browser))
-                }
-            }
-            if (PlatformStuff.isDesktop && !showCallbackFallback) {
-                TextButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = { showCallbackFallback = true }) {
-                    Text(stringResource(Res.string.atproto_show_callback_fallback))
-                }
-            }
-            if (PlatformStuff.isDesktop && showCallbackFallback) {
-                Text(stringResource(Res.string.atproto_paste_callback_info))
-                PanoOutlinedSecureTextField(
-                    callback,
-                    modifier = Modifier.fillMaxWidth().testTag("atproto_callback_url"),
-                    enabled = !state.busy,
-                    label = { Text(stringResource(Res.string.atproto_callback_url)) },
-                )
-                FilledTonalButton(
-                    shapes = ButtonDefaults.shapes(),
-                    enabled = !state.busy && callback.text.isNotBlank(),
-                    onClick = {
-                        viewModel.finishBrowserSignIn(callback.text.toString())
-                        callback.clearText()
-                    },
-                    modifier = Modifier.align(Alignment.End).testTag("atproto_callback_submit"),
-                ) {
-                    Text(stringResource(Res.string.atproto_finish_browser))
-                }
-            }
-            TextButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = {
-                callback.clearText()
-                viewModel.cancelBrowserSignIn()
-            }) {
-                Text(stringResource(Res.string.cancel))
-            }
-        } else if (connected == null || replacing) {
+        if (connected == null || connected.needsReconnect || replacing) {
             PanoOutlinedTextField(
                 handle,
                 modifier = Modifier.fillMaxWidth().testTag("atproto_handle"),
@@ -178,19 +125,6 @@ internal fun AtprotoLoginScreen(
                 Text(stringResource(Res.string.atproto_destinations), style = MaterialTheme.typography.titleMedium)
                 AtprotoDestination(AccountType.TEAL, teal, !state.busy) { teal = !teal }
                 AtprotoDestination(AccountType.ROCKSKY, rocksky, !state.busy) { rocksky = !rocksky }
-            }
-            if (!PlatformStuff.isTv) {
-                FilledTonalButton(
-                    shapes = ButtonDefaults.shapes(),
-                    enabled = canSignIn,
-                    onClick = {
-                        password.clearText()
-                        viewModel.startBrowserSignIn(handle.text.toString(), destinations)
-                    },
-                    modifier = Modifier.testTag("atproto_browser_submit"),
-                ) {
-                    Text(stringResource(Res.string.atproto_open_browser))
-                }
             }
             Text(stringResource(Res.string.atproto_app_password_info), style = MaterialTheme.typography.bodyMedium)
             PanoOutlinedSecureTextField(

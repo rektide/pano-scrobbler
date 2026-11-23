@@ -51,7 +51,7 @@ internal val AccountType.playCollection: String
 /** Public history of the connected DID at its verified PDS; no AT session is used for reads. */
 internal class AtprotoScrobblable(
     account: UserAccountSerializable,
-    private val client: () -> HttpClient = { Requesters.atprotoRepoReader },
+    private val client: () -> HttpClient = { Requesters.atprotoPdsClient },
 ) : Scrobblable(account) {
     private val collection = account.type.playCollection
     private val pds = requireNotNull(account.apiRoot).trimEnd('/')

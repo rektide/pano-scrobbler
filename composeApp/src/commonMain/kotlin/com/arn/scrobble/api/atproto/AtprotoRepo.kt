@@ -15,14 +15,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readBuffer
 import kotlinx.io.readString
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.time.Instant
 
 internal class AtprotoXrpcError(status: Int, val error: String?) : ApiException(status, "AT Protocol request failed") {
@@ -36,8 +33,6 @@ private suspend inline fun <reified T> HttpResponse.repoJson(): T {
     val body = buf.readString()
     if (!status.isSuccess()) {
         val error = runCatching { Stuff.myJson.decodeFromString<JsonObject>(body)["error"] as? JsonPrimitive }.getOrNull()
-        if (status.value in listOf(400, 401) && error?.content == "use_dpop_nonce" && dpopNonce() != null)
-            throw AtprotoNonceRequired()
         throw AtprotoXrpcError(status.value, error?.content)
     }
     return try {
@@ -79,55 +74,37 @@ internal fun RepoRecord.matchesPlay(record: JsonObject): Boolean {
 }
 
 internal suspend fun HttpClient.createPlay(
-    session: AtprotoSession, collection: String, rkey: String, record: JsonObject,
+    session: AtprotoAppPasswordSession, collection: String, rkey: String, record: JsonObject,
 ): RepoRecord {
-    val url = "${session.pds}/xrpc/com.atproto.repo.createRecord".toHttpUrl()
     val payload = buildJsonObject {
         put("repo", session.did)
         put("collection", collection)
         put("rkey", rkey)
         put("record", record)
     }.toString()
-    repeat(2) { attempt ->
-        try {
-            return preparePost(url.toString()) {
-                when (session) {
-                    is AtprotoAppPasswordSession -> header(HttpHeaders.Authorization, "Bearer ${session.accessJwt}")
-                    is AtprotoOAuthSession -> {
-                        header(HttpHeaders.Authorization, "DPoP ${session.accessToken}")
-                        header("DPoP", session.dpop.proof("POST", url, session.accessToken, resource = true))
-                    }
-                }
-                setBody(AtprotoPostContent(payload, ContentType.Application.Json))
-            }.execute { response ->
-                if (session is AtprotoOAuthSession)
-                    response.dpopNonce()?.let { session.dpop.rememberNonce(url, it, resource = true) }
-                response.repoJson<RepoRecord>()
-            }
-        } catch (e: AtprotoNonceRequired) {
-            if (session !is AtprotoOAuthSession || attempt != 0) throw e
-        } catch (e: AtprotoXrpcError) {
-            if (e.code == 403 && e.error in listOf("insufficient_scope", "InsufficientScope")) throw AtprotoPermissionMissing()
-            throw e
-        }
+    try {
+        return preparePost("${session.pds}/xrpc/com.atproto.repo.createRecord") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessJwt}")
+            setBody(AtprotoPostContent(payload, ContentType.Application.Json))
+        }.execute { it.repoJson<RepoRecord>() }
+    } catch (e: AtprotoXrpcError) {
+        if (e.code == 403 && e.error in listOf("insufficient_scope", "InsufficientScope")) throw AtprotoPermissionMissing()
+        throw e
     }
-    error("Unreachable DPoP nonce retry")
 }
 
-internal class AtprotoNonceRequired : ApiException(401, "AT Protocol server requires a new DPoP nonce")
-
-internal fun HttpResponse.dpopNonce(): String? = headers.getAll("DPoP-Nonce")?.singleOrNull()
-    ?.takeIf { it.length in 1..4096 && it.all { char -> char in '!'..'~' && char != ',' } }
-
 @Serializable
-internal data class AppPasswordRotation(val did: String, val accessJwt: String, val refreshJwt: String, val active: Boolean = true)
+private class AppPasswordRotation(val did: String, val accessJwt: String, val refreshJwt: String, val active: Boolean = true)
 
 internal suspend fun HttpClient.rotateAppPassword(pds: String, did: String, token: String): AtprotoAppPasswordSession {
+    if (!token.isBearerToken()) throw AtprotoReconnect()
     val result = preparePost("$pds/xrpc/com.atproto.server.refreshSession") {
         header(HttpHeaders.Authorization, "Bearer $token")
         setBody(AtprotoPostContent("", ContentType.Application.Json))
     }.execute { it.repoJson<AppPasswordRotation>() }
-    if (result.did != did || !result.active || !result.accessJwt.isOAuthCredential() || !result.refreshJwt.isOAuthCredential())
+    if (result.did != did || !result.active || !result.accessJwt.isBearerToken() || !result.refreshJwt.isBearerToken())
         throw AtprotoReconnect()
     return AtprotoAppPasswordSession(did, pds, result.accessJwt, result.refreshJwt)
 }
+
+private fun String.isBearerToken() = isNotEmpty() && all { it in '!'..'~' }

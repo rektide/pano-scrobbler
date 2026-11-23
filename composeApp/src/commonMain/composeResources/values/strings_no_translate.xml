@@ -21,18 +21,8 @@
     <string name="atproto_disconnect_failed" translatable="false">Could not disconnect. Try again.</string>
     <string name="atproto_sign_in_only" translatable="false">Pano writes completed plays to the public history of each selected destination. If Rocksky already mirrors plays to Teal, sending to both directly can create duplicate Teal plays. Pano does not change your mirror settings.</string>
     <string name="atproto_public_recents" translatable="false">Public history from your AT Protocol server</string>
-    <string name="atproto_reconnect_needed" translatable="false">Sign in again as %1$s to resume sending its pending plays.</string>
+    <string name="atproto_reconnect_needed" translatable="false">Sign in again as %1$s with an app password to resume sending pending plays.</string>
     <string name="atproto_pending_owner" translatable="false">Only the original AT Protocol account can send this play: %1$s</string>
-    <string name="atproto_open_browser" translatable="false">Sign in with browser</string>
-    <string name="atproto_waiting_for_browser" translatable="false">Approve sign-in in your browser. If asked to open Pano Scrobbler, allow it. Keep Pano running while you sign in.</string>
-    <string name="atproto_reopen_browser" translatable="false">Reopen browser</string>
-    <string name="atproto_show_callback_fallback" translatable="false">Browser did not return to Pano</string>
-    <string name="atproto_paste_callback_info" translatable="false">If the browser could not open Pano, copy the full return link from its address bar and paste it unchanged. Do not share this link.</string>
-    <string name="atproto_callback_url" translatable="false">Full return link</string>
-    <string name="atproto_finish_browser" translatable="false">Finish sign-in</string>
-    <string name="atproto_browser_failed" translatable="false">Could not start browser sign-in. Check your handle and try again.</string>
-    <string name="atproto_callback_failed" translatable="false">Could not finish browser sign-in. Check the return link or start again.</string>
-    <string name="atproto_callback_expired" translatable="false">There is no active browser sign-in. Start again to get a new link.</string>
     <string name="loading" translatable="false">…</string>
     <string name="export_file_name" translatable="false" formatted="true">pano_scrobbler_export_%1$s</string>
     <string name="edit_case_sensitive_aa" translatable="false">Aa</string>

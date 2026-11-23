@@ -7,10 +7,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.arn.scrobble.api.AccountType
 import com.arn.scrobble.api.UserAccountSerializable
 import com.arn.scrobble.api.UserCached
-import com.arn.scrobble.api.atproto.ATPROTO_CLIENT_ID
 import com.arn.scrobble.api.atproto.AtprotoAppPasswordSession
-import com.arn.scrobble.api.atproto.AtprotoOAuthDpop
-import com.arn.scrobble.api.atproto.AtprotoOAuthSession
 import com.arn.scrobble.api.atproto.AtprotoSessions
 import com.arn.scrobble.api.lastfm.ApiException
 import com.arn.scrobble.api.withScrobbleAccount
@@ -18,10 +15,6 @@ import com.arn.scrobble.db.PanoDb
 import com.arn.scrobble.pref.ImExporter
 import com.arn.scrobble.pref.MainPrefs
 import com.arn.scrobble.utils.DesktopStuff
-import com.nimbusds.jose.crypto.ECDSAVerifier
-import com.nimbusds.jose.jwk.Curve
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator
-import com.nimbusds.jwt.SignedJWT
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,9 +22,9 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.io.path.createTempDirectory
@@ -42,7 +35,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Instant
 
 class AtprotoMainPrefsTest {
     @Test
@@ -82,40 +74,41 @@ class AtprotoMainPrefsTest {
     }
 
     @Test
-    fun reconnectKeepsSettingsAndSelectionAndRestoredOAuthKeySigns() = withPrefsFile { file ->
-        val key = ECKeyGenerator(Curve.P_256).generate()
-        val oauth = AtprotoOAuthSession(DID, PDS, "https://issuer.example", ATPROTO_CLIENT_ID,
-            setOf("atproto", "repo:fm.teal.feed.play?action=create"), Instant.parse("2026-01-01T12:00:00Z"),
-            "synthetic-oauth-access", "synthetic-oauth-refresh", AtprotoOAuthDpop(key))
-        file.open { prefs ->
+    fun retiredOAuthSessionRequiresReconnectWithoutResettingPrefs() = withPrefsFile { file ->
+        val unrelated = UserAccountSerializable(AccountType.GNUFM, user, "existing-auth", "https://other.example")
+        val before = file.open { prefs ->
             val sessions = AtprotoSessions(prefs)
             sessions.connect(appSession(), user, destinations)
             prefs.updateData { p ->
-                p.copy(currentAccountType = AccountType.ROCKSKY, scrobbleAccounts = p.scrobbleAccounts.map {
+                p.copy(scrobblerEnabled = false, currentAccountType = AccountType.ROCKSKY, scrobbleAccounts = p.scrobbleAccounts.map {
                     if (it.type == AccountType.TEAL) it.copy(canScrobble = false) else it
-                })
+                } + unrelated)
             }
-            sessions.connect(oauth, user, destinations)
         }
+        val legacy = Json.parseToJsonElement("""{
+            "type":"oauth","did":"$DID","pds":"$PDS","issuer":"https://issuer.example",
+            "clientId":"https://client.example/metadata.json","scopes":["atproto"],
+            "expiresAt":"2026-01-01T12:00:00Z","accessToken":"retired-access",
+            "refreshToken":"retired-refresh","dpop":"retired-private-key"
+        }""")
+        val saved = Json.parseToJsonElement(file.readText()).jsonObject
+        file.writeText(JsonObject(saved + ("atprotoSession" to legacy)).toString())
         file.open { prefs ->
             val p = prefs.data.first()
-            assertEquals(AccountType.ROCKSKY, p.currentAccountType)
-            assertFalse(p.scrobbleAccounts.single { it.type == AccountType.TEAL }.canScrobble)
+            assertEquals(before.copy(atprotoSession = null), p)
+            assertEquals(DID, p.atprotoConnection?.did)
+            assertTrue(p.atprotoConnection?.needsReconnect == true)
             val sessions = AtprotoSessions(prefs)
-            for (account in p.scrobbleAccounts) {
-                val restored = assertIs<AtprotoOAuthSession>(sessions.restore(account))
-                assertEquals(oauth.accessToken, restored.accessToken)
-                assertEquals(oauth.refreshToken, restored.refreshToken)
-                assertEquals(oauth.issuer, restored.issuer)
-                assertEquals(oauth.pds, restored.pds)
-                assertEquals(oauth.clientId, restored.clientId)
-                assertEquals(oauth.expiresAt, restored.expiresAt)
-                assertEquals(oauth.scopes, restored.scopes)
-                val proof = SignedJWT.parse(restored.dpop.proof("POST", "$PDS/xrpc/com.atproto.repo.createRecord".toHttpUrl()))
-                assertEquals(key.computeThumbprint(), proof.header.jwk.computeThumbprint())
-                assertFalse(proof.header.jwk.isPrivate)
-                assertTrue(proof.verify(ECDSAVerifier(key.toPublicJWK())))
-            }
+            assertTrue(p.scrobbleAccounts.all { sessions.restore(it) == null })
+            sessions.connect(appSession(), user, destinations)
+        }
+        assertFalse("retired-" in file.readText())
+        file.open { prefs ->
+            val p = prefs.data.first()
+            assertEquals(before.scrobbleAccounts, p.scrobbleAccounts)
+            assertEquals(AccountType.ROCKSKY, p.currentAccountType)
+            assertFalse(p.scrobblerEnabled)
+            assertEquals(false, p.atprotoConnection?.needsReconnect)
         }
     }
 
@@ -176,11 +169,9 @@ class AtprotoMainPrefsTest {
 
     @Test
     fun publicExportOmitsLoginAndPublicImportCannotOverwriteIt() = withPrefsFile { file ->
-        val key = ECKeyGenerator(Curve.P_256).generate()
-        val oauth = AtprotoOAuthSession(DID, PDS, "https://issuer.example", ATPROTO_CLIENT_ID,
-            setOf("atproto"), Instant.parse("2026-01-01T12:00:00Z"), "synthetic-oauth-access", null, AtprotoOAuthDpop(key))
+        val session = appSession()
         file.open { prefs ->
-            AtprotoSessions(prefs).connect(oauth, user, destinations)
+            AtprotoSessions(prefs).connect(session, user, destinations)
             // Loading PanoDb initializes its desktop singleton before Room builds the test database.
             DesktopStuff.parseCmdlineArgs(arrayOf("--data-dir", file.parent))
             val db = Room.inMemoryDatabaseBuilder<PanoDb>().setDriver(BundledSQLiteDriver()).build()
@@ -189,7 +180,7 @@ class AtprotoMainPrefsTest {
                 val output = ByteArrayOutputStream()
                 assertTrue(exporter.export(output))
                 val exported = output.toString(Charsets.UTF_8.name())
-                for (secret in listOf("atprotoSession", "scrobbleAccounts", DID, PDS, oauth.accessToken, key.d.toString()))
+                for (secret in listOf("atprotoSession", "scrobbleAccounts", DID, PDS, session.accessJwt, session.refreshJwt))
                     assertFalse(secret in exported)
 
                 val injected = """{"pano_version":1,"settings":{"scrobblerEnabled":false,"atprotoSession":null,"scrobbleAccounts":[]}}"""
@@ -204,9 +195,9 @@ class AtprotoMainPrefsTest {
             assertFalse(imported.scrobblerEnabled)
             assertEquals(DID, imported.atprotoSession?.did)
             assertEquals(destinations, imported.scrobbleAccounts.map { it.type }.toSet())
-            val restored = assertIs<AtprotoOAuthSession>(AtprotoSessions(prefs).restore(imported.scrobbleAccounts.first()))
-            assertEquals(oauth.accessToken, restored.accessToken)
-            assertNull(restored.refreshToken)
+            val restored = assertIs<AtprotoAppPasswordSession>(AtprotoSessions(prefs).restore(imported.scrobbleAccounts.first()))
+            assertEquals(session.accessJwt, restored.accessJwt)
+            assertEquals(session.refreshJwt, restored.refreshJwt)
         }
     }
 

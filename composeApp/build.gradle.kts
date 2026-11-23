@@ -112,7 +112,6 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.okhttp)
-            implementation(libs.nimbus.jose.jwt)
             implementation(libs.aboutlibraries.core)
             implementation(libs.kotlin.csv)
             implementation(libs.kermit)
@@ -133,10 +132,6 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
-        }
-
-        jvmTest.dependencies {
-            implementation(libs.okhttp.tls)
         }
 
         jvmMain.dependencies {

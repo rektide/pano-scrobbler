@@ -6,7 +6,6 @@ import com.arn.scrobble.api.cache.HttpMemoryCache
 import com.arn.scrobble.api.cache.HybridCacheStorage
 import com.arn.scrobble.api.deezer.DeezerRequester
 import com.arn.scrobble.api.itunes.ItunesRequester
-import com.arn.scrobble.api.atproto.atprotoPublicDns
 import com.arn.scrobble.api.lastfm.ApiException
 import com.arn.scrobble.api.lastfm.DefaultExpirationPolicy
 import com.arn.scrobble.api.lastfm.LastFm
@@ -49,7 +48,9 @@ import okhttp3.Credentials
 import okhttp3.Dns
 import java.io.File
 import java.net.Authenticator
+import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.UnknownHostException
 import java.net.PasswordAuthentication
 import java.net.Proxy
 import java.security.cert.X509Certificate
@@ -183,11 +184,31 @@ object Requesters {
     private val _baseKtorClient = createBaseKtorClient(false)
     val baseKtorClient by _baseKtorClient
 
-    private val _atprotoOAuthKtorClient = createBaseKtorClient(false, atprotoPublicDns)
-    val atprotoOAuthKtorClient by _atprotoOAuthKtorClient
+    private val atprotoPublicDns = Dns { host ->
+        val addresses = Dns.SYSTEM.lookup(host).filter(::isPublicAtprotoAddress)
+        addresses.ifEmpty { throw UnknownHostException("No public address for AT Protocol PDS") }
+    }
 
-    private val _atprotoRepoReader = createBaseKtorClient(false, atprotoPublicDns, redirects = false)
-    val atprotoRepoReader by _atprotoRepoReader
+    private fun isPublicAtprotoAddress(address: InetAddress): Boolean {
+        if (address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress ||
+            address.isSiteLocalAddress || address.isMulticastAddress) return false
+        val octets = address.address
+        val a = octets[0].toInt() and 0xff
+        val b = octets[1].toInt() and 0xff
+        val c = octets[2].toInt() and 0xff
+        return if (octets.size == 4) {
+            a !in listOf(0, 10, 127) && a < 224 && !(a == 100 && b in 64..127) &&
+                !(a == 169 && b == 254) && !(a == 172 && b in 16..31) && !(a == 192 && b == 168) &&
+                !(a == 192 && b == 0 && c in listOf(0, 2)) && !(a == 198 && b in 18..19) &&
+                !(a == 198 && b == 51 && c == 100) && !(a == 203 && b == 0 && c == 113)
+        } else {
+            a and 0xe0 == 0x20 && !(a == 0x20 && b == 0x01 && c == 0x0d && (octets[3].toInt() and 0xff) == 0xb8) &&
+                !(a == 0x20 && b == 0x02)
+        }
+    }
+
+    private val _atprotoPdsClient = createBaseKtorClient(false, atprotoPublicDns, redirects = false)
+    val atprotoPdsClient by _atprotoPdsClient
 
     private fun createGenericKtorClient(trustAll: Boolean) = invalidatableLazy {
         val baseClient = if (trustAll) {
@@ -242,8 +263,7 @@ object Requesters {
 
     private fun invalidateAll() {
         _baseKtorClient.invalidate()
-        _atprotoOAuthKtorClient.invalidate()
-        _atprotoRepoReader.invalidate()
+        _atprotoPdsClient.invalidate()
         _genericKtorClient.invalidate()
         _genericKtorTrustAllClient.invalidate()
         spotifyRequester.invalidateClient()

@@ -10,7 +10,7 @@ import com.arn.scrobble.api.AccountType
 import com.arn.scrobble.api.DrawerData
 import com.arn.scrobble.api.UserAccountSerializable
 import com.arn.scrobble.api.UserCached
-import com.arn.scrobble.api.atproto.AtprotoSession
+import com.arn.scrobble.api.atproto.AtprotoAppPasswordSession
 import com.arn.scrobble.api.lastfm.CookieSerializable
 import com.arn.scrobble.api.lastfm.LastfmPeriod
 import com.arn.scrobble.charts.TimePeriod
@@ -31,6 +31,12 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonNames
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import java.io.InputStream
@@ -135,7 +141,8 @@ data class MainPrefs(
     val extractFirstArtistPackages: Set<String> = emptySet(),
     val discordRpc: DiscordRpcPrefs = DiscordRpcPrefs(),
     val proxy: ProxyPrefs = ProxyPrefs(),
-    val atprotoSession: AtprotoSession? = null,
+    @Serializable(with = AtprotoStoredSessionSerializer::class)
+    val atprotoSession: AtprotoAppPasswordSession? = null,
     val atprotoRotation: String? = null,
 ) {
 
@@ -260,7 +267,8 @@ data class MainPrefs(
                 it.type.isAtproto && it.authKey == owner.authKey && it.apiRoot == owner.apiRoot
             }
             destinations.firstOrNull()?.let {
-                AtprotoConnection(owner.authKey, it.user.name, destinations.mapTo(linkedSetOf()) { it.type })
+                AtprotoConnection(owner.authKey, it.user.name, destinations.mapTo(linkedSetOf()) { it.type },
+                    needsReconnect = atprotoSession?.let { it.did == owner.authKey && it.pds == owner.apiRoot } != true)
             }
         }
 
@@ -398,4 +406,18 @@ data class MainPrefs(
     }
 }
 
-internal data class AtprotoConnection(val did: String, val handle: String, val destinations: Set<AccountType>)
+internal data class AtprotoConnection(
+    val did: String, val handle: String, val destinations: Set<AccountType>, val needsReconnect: Boolean,
+)
+
+private object AtprotoStoredSessionSerializer :
+    JsonTransformingSerializer<AtprotoAppPasswordSession?>(AtprotoAppPasswordSession.serializer().nullable) {
+    private val appPassword = JsonPrimitive("app_password")
+
+    // Drop the retired credential variant without invalidating MainPrefs or its destination entries.
+    override fun transformDeserialize(element: JsonElement): JsonElement =
+        if (element is JsonObject && element["type"] == appPassword) JsonObject(element - "type") else JsonNull
+
+    override fun transformSerialize(element: JsonElement): JsonElement =
+        if (element is JsonObject) JsonObject(element + ("type" to appPassword)) else element
+}

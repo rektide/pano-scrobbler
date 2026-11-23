@@ -8,24 +8,15 @@ import com.arn.scrobble.api.UserCached
 import com.arn.scrobble.api.withScrobbleAccount
 import com.arn.scrobble.pref.MainPrefs
 import com.arn.scrobble.utils.PlatformStuff
-import kotlinx.coroutines.flow.first
-import kotlinx.serialization.Serializable
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.flow.first
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.time.Clock
-
-@Serializable
-sealed interface AtprotoSession {
-    val did: String
-    val pds: String
-}
 
 /** The AT login is private to MainPrefs. Teal and Rocksky entries hold only its DID and PDS. */
 class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.mainPrefs) {
     /** Saves a verified login and its enabled destinations together. */
-    suspend fun connect(session: AtprotoSession, user: UserCached, destinations: Set<AccountType>) {
-        require(session.isForThisClient())
+    suspend fun connect(session: AtprotoAppPasswordSession, user: UserCached, destinations: Set<AccountType>) {
         require(destinations.isNotEmpty() && destinations.all { it.isAtproto })
         prefs.updateData { p ->
             val sameDid = p.atprotoConnection?.did == session.did
@@ -48,17 +39,16 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
     }
 
     /** Resolves an enabled destination, never handing a stale account another DID's tokens. */
-    suspend fun restore(account: UserAccountSerializable): AtprotoSession? {
+    suspend fun restore(account: UserAccountSerializable): AtprotoAppPasswordSession? {
         if (!account.type.isAtproto) return null
         val p = prefs.data.first()
         if (p.scrobbleAccounts.none { it.type == account.type && it.authKey == account.authKey && it.apiRoot == account.apiRoot })
             return null
-        return p.atprotoSession?.takeIf { it.did == account.authKey && it.pds == account.apiRoot && it.isForThisClient() }
+        return p.atprotoSession?.takeIf { it.did == account.authKey && it.pds == account.apiRoot }
     }
 
     /** Replaces credentials for the connected account without changing either destination. */
-    suspend fun replaceSession(session: AtprotoSession) {
-        require(session.isForThisClient())
+    suspend fun replaceSession(session: AtprotoAppPasswordSession) {
         prefs.updateData { p ->
             check(p.atprotoSession?.let { it.did == session.did && it.pds == session.pds } == true) {
                 "AT Protocol account is no longer connected"
@@ -88,30 +78,25 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
     /** Serialize account replacement against authenticated sends using MainPrefs' multiprocess update lock. */
     internal suspend fun send(
         account: UserAccountSerializable,
-        client: HttpClient = Requesters.atprotoRepoReader,
-        action: suspend (AtprotoSession) -> RepoRecord,
+        client: HttpClient = Requesters.atprotoPdsClient,
+        action: suspend (AtprotoAppPasswordSession) -> RepoRecord,
     ): RepoRecord {
         val initial = restore(account) ?: throw AtprotoReconnect()
-        val available = if (initial is AtprotoOAuthSession && initial.expiresAt <= Clock.System.now()) {
-            refresh(account, client, initial)
-        } else initial
-        suspend fun post(expected: AtprotoSession): RepoRecord {
+        suspend fun post(expected: AtprotoAppPasswordSession): RepoRecord {
             var receipt: RepoRecord? = null
             prefs.updateData { prefs ->
                 val session = prefs.writeSession(account)
-                if (session.authorization() != expected.authorization()) throw AtprotoReconnect()
-                if (session is AtprotoOAuthSession && !session.canCreate(account.type.playCollection))
-                    throw AtprotoPermissionMissing()
+                if (session.accessJwt != expected.accessJwt || session.refreshJwt != expected.refreshJwt) throw AtprotoReconnect()
                 receipt = action(session)
                 prefs
             }
             return requireNotNull(receipt)
         }
         return try {
-            post(available)
+            post(initial)
         } catch (e: AtprotoXrpcError) {
             if (!e.expired) throw e
-            val rotated = refresh(account, client, available)
+            val rotated = refresh(account, client, initial)
             try {
                 post(rotated)
             } catch (e: AtprotoXrpcError) {
@@ -121,32 +106,23 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
     }
 
     /** Remove the old refresh token durably before sending it; a crash or uncertain rotation needs reconnect. */
-    private suspend fun refresh(account: UserAccountSerializable, http: HttpClient, expected: AtprotoSession): AtprotoSession {
-        // Discovery does not consume the token. Preserve it if the server cannot be reached.
-        val server = if (expected is AtprotoOAuthSession) {
-            http.discoverAtprotoOAuth(expected.pds).also { if (it.issuer != expected.issuer) throw AtprotoReconnect() }
-        } else null
+    private suspend fun refresh(
+        account: UserAccountSerializable, http: HttpClient, expected: AtprotoAppPasswordSession,
+    ): AtprotoAppPasswordSession {
         val attempt = UUID.randomUUID().toString()
-        var useSession: AtprotoSession? = null
+        var useSession: AtprotoAppPasswordSession? = null
         prefs.updateData { p ->
             val session = p.writeSession(account)
-            if (session.authorization() != expected.authorization()) {
+            if (session.accessJwt != expected.accessJwt || session.refreshJwt != expected.refreshJwt) {
                 useSession = session
                 p
             } else {
-                when (session) {
-                    is AtprotoAppPasswordSession -> if (!session.refreshJwt.isOAuthCredential()) throw AtprotoReconnect()
-                    is AtprotoOAuthSession -> if (session.refreshToken?.isOAuthCredential() != true) throw AtprotoReconnect()
-                }
                 p.copy(atprotoSession = null, atprotoRotation = attempt)
             }
         }
         useSession?.let { return it }
         val session = try {
-            when (expected) {
-                is AtprotoAppPasswordSession -> http.rotateAppPassword(expected.pds, expected.did, expected.refreshJwt)
-                is AtprotoOAuthSession -> http.rotateOAuth(expected, requireNotNull(expected.refreshToken), requireNotNull(server))
-            }
+            http.rotateAppPassword(expected.pds, expected.did, expected.refreshJwt)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -159,23 +135,16 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
         return session
     }
 
-    private fun AtprotoSession.authorization(): String = when (this) {
-        is AtprotoAppPasswordSession -> accessJwt
-        is AtprotoOAuthSession -> accessToken
-    }
-
     private fun MainPrefs.hasDestination(account: UserAccountSerializable) = scrobbleAccounts.any {
         it.type == account.type && it.authKey == account.authKey && it.apiRoot == account.apiRoot && it.canScrobble
     }
 
-    private fun MainPrefs.writeSession(account: UserAccountSerializable): AtprotoSession =
-        atprotoSession?.takeIf { hasDestination(account) && it.did == account.authKey && it.pds == account.apiRoot && it.isForThisClient() }
+    private fun MainPrefs.writeSession(account: UserAccountSerializable): AtprotoAppPasswordSession =
+        atprotoSession?.takeIf { hasDestination(account) && it.did == account.authKey && it.pds == account.apiRoot }
             ?: throw AtprotoReconnect()
 
     private fun MainPrefs.selectionIn(accounts: List<UserAccountSerializable>) =
         currentAccountType.takeIf { selected -> accounts.any { it.type == selected } }
             ?: accounts.firstOrNull { !it.type.isAtproto }?.type
             ?: accounts.firstOrNull()?.type ?: AccountType.LASTFM
-
-    private fun AtprotoSession.isForThisClient() = this !is AtprotoOAuthSession || clientId == ATPROTO_CLIENT_ID
 }

@@ -70,7 +70,7 @@ install -m644 "$pngIconPath" "$appDir/.DirIcon"
 # Desktop file
 desktopFile="$libExecDir/$appNameWithoutSpaces.desktop"
 sed -i -e "s/^Icon=.*/Icon=$appNameWithoutSpaces-appimage/" "$desktopFile"
-sed -e "s/^Exec=.*/Exec=AppRun %u/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
+sed -e "s/^Exec=.*/Exec=AppRun %U/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
 chmod 644 "$appDir/$appNameWithoutSpaces.desktop"
 install -d "$appDir/usr/share/applications/"
 mv "$desktopFile" "$appDir/usr/share/applications/"
@@ -126,7 +126,6 @@ Architecture: ${debArch}
 Maintainer: kawaiiDango <kawaiiDango@protonmail.com>
 Installed-Size: ${installedSize}
 Depends: dbus, libwebkitgtk-6.0-4
-Recommends: desktop-file-utils
 Section: sound
 Priority: optional
 Homepage: https://github.com/kawaiiDango/pano-scrobbler

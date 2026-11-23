@@ -65,7 +65,6 @@ compose.desktop {
     application {
         mainClass = "com.arn.scrobble.main.MainKt"
         jvmArgs += commonJvmArgs()
-        if (IS_LINUX) jvmArgs += "-Dpano.dev.oauthHandler=true"
 //        args += "-m"
 
         nativeDistributions {

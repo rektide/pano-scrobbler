@@ -19,8 +19,6 @@ expect object PlatformStuff {
 
     val cacheDir: File
 
-    val noBackupFilesDir: File
-
     val logsDir: File
 
     fun getDeviceIdentifier(): String

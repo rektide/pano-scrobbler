@@ -20,7 +20,7 @@ internal val atprotoMask = accountTypesToBitMask(setOf(AccountType.TEAL, Account
 internal class AtprotoPendingPlays(
     private val dao: PendingScrobblesDao,
     private val prefs: DataStore<MainPrefs>,
-    private val client: () -> HttpClient = { Requesters.atprotoRepoReader },
+    private val client: () -> HttpClient = { Requesters.atprotoPdsClient },
 ) {
     suspend fun enqueue(play: ScrobbleData): Boolean {
         val accounts = prefs.data.first().atprotoTargets()

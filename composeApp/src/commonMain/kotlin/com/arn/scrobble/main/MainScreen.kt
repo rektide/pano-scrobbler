@@ -378,8 +378,6 @@ fun PanoAppContent(
                 // expand the whole chain
                 if (last is PanoRoute.Modal.CanExpand && last.isExpanded && route is PanoRoute.Modal.CanExpand)
                     backStack.add(route.copyExpanded())
-                else if (route == PanoRoute.LoginAtproto && route in backStack)
-                    while (backStack.last() != route) backStack.removeLast()
                 else
                     backStack.add(route)
             }
@@ -535,8 +533,8 @@ fun PanoAppContent(
 
     NavFromOutsideEffect(
         onNavigate = {
-            // OAuth can return to the app before there is a logged-in account.
-            if (it == PanoRoute.LoginAtproto || currentUser != null)
+            // disable deeplinks if logged out
+            if (currentUser != null)
                 navigate(it)
         },
         isAndroidDialogActivity = isDialogActivity

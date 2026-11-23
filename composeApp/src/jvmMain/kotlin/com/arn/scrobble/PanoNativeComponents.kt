@@ -10,7 +10,6 @@ import com.arn.scrobble.media.PlaybackInfo
 import com.arn.scrobble.media.ScrobbleQueue
 import com.arn.scrobble.media.SessionInfo
 import com.arn.scrobble.media.listenForPlayingTrackEvents
-import com.arn.scrobble.onboarding.DesktopOAuthHandoff
 import com.arn.scrobble.utils.DesktopStuff
 import com.arn.scrobble.utils.PanoTrayUtils
 import com.arn.scrobble.utils.Stuff
@@ -140,8 +139,6 @@ object PanoNativeComponents {
     fun onReceiveIpcCommand(command: String, arg: String) {
         if (command == Automation.DESKTOP_FOCUS_EXISTING) {
             PanoTrayUtils.onTrayMenuItemClickedFn(PanoTrayUtils.ItemId.Open.name)
-        } else if (command == DesktopOAuthHandoff.IPC_COMMAND) {
-            DesktopOAuthHandoff.deliver(arg)
         } else if (command == Automation.DESKTOP_QUIT) {
             exitProcess(0)
         } else {

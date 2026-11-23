@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import com.arn.scrobble.db.BlockedMetadata
 import com.arn.scrobble.media.PlayingTrackNotifyEvent
-import com.arn.scrobble.onboarding.DesktopOAuthHandoff
 import com.arn.scrobble.utils.PanoNotifications
 import com.arn.scrobble.utils.PanoTrayUtils
 import com.arn.scrobble.utils.PlatformStuff
@@ -16,9 +15,6 @@ actual fun NavFromOutsideEffect(
     onNavigate: (PanoRoute) -> Unit,
     isAndroidDialogActivity: Boolean,
 ) {
-    LaunchedEffect(Unit) {
-        for (event in DesktopOAuthHandoff.navigation) onNavigate(PanoRoute.LoginAtproto)
-    }
     LaunchedEffect(Unit) {
         PanoTrayUtils.onTrayMenuItemClicked.collect { id ->
             // settings

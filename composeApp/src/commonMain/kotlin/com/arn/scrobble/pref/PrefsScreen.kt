@@ -151,6 +151,7 @@ import pano_scrobbler.composeapp.generated.resources.regex_rules
 import pano_scrobbler.composeapp.generated.resources.scrobble_services
 import pano_scrobbler.composeapp.generated.resources.atproto
 import pano_scrobbler.composeapp.generated.resources.atproto_connected
+import pano_scrobbler.composeapp.generated.resources.atproto_reconnect_needed
 import pano_scrobbler.composeapp.generated.resources.scrobbles
 import pano_scrobbler.composeapp.generated.resources.search
 import pano_scrobbler.composeapp.generated.resources.simple_edits
@@ -1024,7 +1025,9 @@ fun PrefsScreen(
         filteredItem("atproto", Res.string.atproto) { title ->
             TextPref(
                 text = title,
-                summary = atprotoConnection?.let { stringResource(Res.string.atproto_connected, it.handle) },
+                summary = atprotoConnection?.let {
+                    stringResource(if (it.needsReconnect) Res.string.atproto_reconnect_needed else Res.string.atproto_connected, it.handle)
+                },
                 onClick = { onNavigate(PanoRoute.LoginAtproto) },
             )
         }
