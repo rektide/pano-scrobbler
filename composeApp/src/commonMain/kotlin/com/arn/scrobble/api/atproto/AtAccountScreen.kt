@@ -93,6 +93,7 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
                 edit(settings.copy(delete = settings.delete.toggled(target, it)))
             }
         }
+        AtToggle("Allow loving and unloving Rocksky songs", settings.likes, !busy) { edit(settings.copy(likes = it)) }
         if (settings.completed.size == 2) Text("If you already mirror Teal to Rocksky, select Teal only to avoid duplicate Rocksky plays.")
         account?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
             Text("${AtProblem.PERMISSION.text}\n" + missing.entries.joinToString("\n") { (key, actions) -> "$key: ${actions.sorted().joinToString()}" })

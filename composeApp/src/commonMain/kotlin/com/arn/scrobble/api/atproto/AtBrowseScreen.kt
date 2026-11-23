@@ -1,6 +1,8 @@
 package com.arn.scrobble.api.atproto
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -27,6 +29,17 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     var error by remember { mutableStateOf<String?>(null) }
     var auxError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf(AtSection.HISTORY) }
+    var period by remember { mutableStateOf(AtPeriod.MONTH) }
+    var results by remember { mutableStateOf<AtReadPage<String, AtInsight>?>(null) }
+    var insightWalk by remember { mutableStateOf<AtPageWalk<String, AtInsight>?>(null) }
+    var insightPage by remember { mutableIntStateOf(1) }
+    var actionAccount by remember { mutableStateOf<AtAccount?>(null) }
+    var selected by remember { mutableStateOf<AtListen?>(null) }
+    var confirmDelete by remember { mutableStateOf<AtRef?>(null) }
+    var subject by remember { mutableStateOf<AtRef?>(null) }
+    var loved by remember { mutableStateOf<Boolean?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun run(block: suspend () -> Unit) {
@@ -51,6 +64,9 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         val walk = atPublic.history(resolved)
         content = walk.page(1)
         query = resolved
+        section = AtSection.HISTORY
+        selected = null
+        notice = null
         pager = walk
         page = 1
         auxError = null
@@ -61,6 +77,24 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         }
         profile = try { atPublic.profile(resolved) } catch (e: java.io.IOException) {
             auxError = listOfNotNull(auxError, "Public profile unavailable.").joinToString(" "); null
+        }
+    }
+
+    fun loadSection(view: AtSection, window: AtPeriod) {
+        val current = query ?: return
+        section = view
+        period = window
+        selected = null
+        notice = null
+        results = null
+        insightPage = 1
+        insightWalk = null
+        if (view == AtSection.HISTORY || current.target.limitation(view) != null ||
+            (current.target == AtTarget.ROCKSKY && view == AtSection.ACTIVITY && window == AtPeriod.ALL)) return
+        run {
+            val walk = atPublic.insights(current, view, window)
+            results = walk.page(1)
+            insightWalk = walk
         }
     }
 
@@ -88,19 +122,103 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
                 ListItem(headlineContent = { Text(p.displayName ?: p.handle ?: loaded.identity.did) },
                     supportingContent = { Text(p.source) }, leadingContent = { AtArtwork(p.avatar) })
             }
-            if (page == 1) status?.let { AtListenRow(it, "Now playing · PDS") }
-            content?.let { result ->
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AtSection.entries.forEach { view ->
+                    FilterChip(section == view, onClick = { loadSection(view, period) }, enabled = !busy, label = { Text(view.label) })
+                }
+            }
+            notice?.let { Text(it) }
+            if (section == AtSection.HISTORY) {
+                if (page == 1) status?.let { AtListenRow(it, "Now playing · PDS") }
+                content?.let { result ->
                 if (result.values.isEmpty()) Text(if (result.next != null) "No matching plays on this page. More pages are available." else "No plays on this page.")
-                result.values.forEach { AtListenRow(it) }
+                result.values.forEach { item ->
+                    AtListenRow(item, action = {
+                        TextButton(enabled = !busy, onClick = {
+                            selected = item
+                            subject = null
+                            loved = null
+                            notice = null
+                            // Anonymous scrolling never opens the credential vault. Only explicit record actions do.
+                            run { actionAccount = try { atAuthority.account() } catch (_: AtFailure) { null } }
+                        }) { Text("Actions") }
+                    })
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(enabled = !busy && page > 1, onClick = { run { content = pager?.page(page - 1); page-- } }) { Text("Previous") }
+                    OutlinedButton(enabled = !busy && page > 1, onClick = { run { selected = null; content = pager?.page(page - 1); page-- } }) { Text("Previous") }
                     Text("Page $page", Modifier.padding(top = 12.dp))
                     OutlinedButton(enabled = !busy && result.next != null && page < 400, onClick = {
-                        run { content = pager?.page(page + 1); page++ }
+                        run { selected = null; content = pager?.page(page + 1); page++ }
                     }) { Text("Next") }
+                }
+                }
+            } else {
+                if (section in setOf(AtSection.ARTISTS, AtSection.RELEASES, AtSection.ACTIVITY)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AtPeriod.entries.forEach { window ->
+                            FilterChip(window == period, onClick = { loadSection(section, window) }, enabled = !busy, label = { Text(window.label) })
+                        }
+                    }
+                    if (loaded.target == AtTarget.TEAL) Text("Teal’s index supplies up to 50 ranks. History date filters do not apply to this view.")
+                }
+                val limitation = loaded.target.limitation(section) ?: "Rocksky activity is available for the 7- or 30-day range."
+                    .takeIf { loaded.target == AtTarget.ROCKSKY && section == AtSection.ACTIVITY && period == AtPeriod.ALL }
+                limitation?.let { Text(it) }
+                results?.let { result ->
+                    if (result.values.isEmpty()) Text("No ${section.label.lowercase()} entries on this page.")
+                    result.values.forEach { item ->
+                        ListItem(headlineContent = { Text(item.name) }, supportingContent = { item.detail?.let { Text(it) } },
+                            leadingContent = { AtArtwork(item.image) }, trailingContent = {
+                                item.actor?.let { did -> TextButton(enabled = !busy, onClick = { actor = did; load(target) }) { Text("Browse") } }
+                            })
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(enabled = !busy && insightPage > 1, onClick = { run { results = insightWalk?.page(insightPage - 1); insightPage-- } }) { Text("Previous") }
+                        Text("Page $insightPage", Modifier.padding(top = 12.dp))
+                        OutlinedButton(enabled = !busy && result.next != null && insightPage < 400, onClick = { run { results = insightWalk?.page(insightPage + 1); insightPage++ } }) { Text("Next") }
+                    }
                 }
             }
         }
+    }
+    val current = query
+    val item = selected
+    if (current != null && item != null && confirmDelete == null) {
+        val member = actionAccount?.takeIf { it.identity?.did == current.identity.did && it.method != null }
+        val deleteEnabled = current.target in member?.settings?.delete.orEmpty() && member?.missing?.get(current.target.play)?.contains("delete") != true
+        val likesEnabled = member?.settings?.likes == true && member.missing[ROCKSKY_LIKE].isNullOrEmpty()
+        AlertDialog(onDismissRequest = { selected = null }, title = { Text(item.title) }, text = {
+            Column {
+                if (!deleteEnabled) Text("Delete requires the owning DID and the delete permission in AT Protocol account settings.")
+                else Button(enabled = !busy, onClick = { run { confirmDelete = atActions.ownRecord(current, item) } }) { Text("Review ${current.target.label} deletion") }
+                when {
+                    current.target == AtTarget.TEAL -> Text(current.target.limitation(AtSection.LOVED).orEmpty())
+                    !likesEnabled -> Text("Rocksky love actions require the owning DID and the love permissions in account settings.")
+                    item.catalogUri == null -> Text("Rocksky does not provide a catalog song for this listen.")
+                    subject == null -> OutlinedButton(enabled = !busy, onClick = { run {
+                        val ref = atActions.rockskySubject(item)
+                        loved = atActions.matchingLikes(current.identity, ref).isNotEmpty()
+                        subject = ref
+                    } }) { Text("Check my Rocksky love state") }
+                    else -> OutlinedButton(enabled = !busy, onClick = { run {
+                        loved = atActions.setLoved(current.identity, subject!!, loved != true)
+                        notice = "Love state confirmed on your PDS. Rocksky’s index may take time to update."
+                    } }) { Text(if (loved == true) "Unlove on Rocksky" else "Love on Rocksky") }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        }, confirmButton = { TextButton(onClick = { selected = null }) { Text("Done") } })
+    }
+    confirmDelete?.let { ref ->
+        if (current != null) AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text("Delete this ${current.target.label} listen?") }, text = {
+            Text("Only this record revision will be deleted:\n${ref.address.uri}\n${ref.cid}")
+        }, confirmButton = { TextButton(enabled = !busy, onClick = { run {
+            confirmDelete = null
+            selected = null
+            atActions.delete(ref, current.target)
+            content = content?.let { it.copy(values = it.values.filterNot { row -> row.id == ref.address.uri }) }
+            notice = "Removed from your PDS. The service index may take time to update."
+        } }) { Text("Delete listen") } }, dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } })
     }
 }
 
@@ -114,8 +232,8 @@ internal fun AtArtwork(url: String?) {
 }
 
 @Composable
-internal fun AtListenRow(item: AtListen, label: String? = null) {
+internal fun AtListenRow(item: AtListen, label: String? = null, action: (@Composable () -> Unit)? = null) {
     ListItem(headlineContent = { Text(item.title) }, supportingContent = {
         Text(listOfNotNull(label, item.artist.takeIf(String::isNotBlank), item.album, item.time?.let { Instant.ofEpochMilli(it).toString() }).joinToString(" · "))
-    }, leadingContent = { AtArtwork(item.image) })
+    }, leadingContent = { AtArtwork(item.image) }, trailingContent = action)
 }
