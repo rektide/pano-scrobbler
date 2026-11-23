@@ -12,6 +12,9 @@ appNameWithoutSpaces="pano-scrobbler"
 nativeImageDir="$scriptDir/build/native/$resourcesDirName"
 stageDir=$(mktemp -d "$scriptDir/build/linux-package.XXXXXXXX") || exit 1
 trap 'rm -rf -- "$stageDir"' EXIT
+# appimagetool rewrites parts of the AppDir, including the desktop entry.
+# The staging root stays mode 0700; packaged contents must be world-readable.
+umask 022
 appDir="$stageDir/PanoScrobbler.AppDir"
 libExecDir="$appDir/usr/libexec/pano-scrobbler"
 distDir="$scriptDir/../dist"
