@@ -40,6 +40,7 @@ internal suspend fun HttpClient.getIdentityDocument(url: String): String =
         body.readString()
     }
 
+/** Returns the account DID and HTTPS PDS after checking that the DID document claims the supplied handle. */
 internal suspend fun resolveAtprotoHandle(
     input: String,
     getDocument: suspend (String) -> String = { url ->
