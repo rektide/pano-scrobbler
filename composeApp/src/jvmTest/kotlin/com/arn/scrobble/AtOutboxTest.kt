@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 
 class AtOutboxTest {
-    @Test fun firstCommitWithoutResponseAndPartialTargetRetrySurviveRestart() = runBlocking {
+    @Test fun firstCommitWithoutResponseAndPartialTargetRetrySurviveRestart(): Unit = runBlocking {
         val root = Files.createTempDirectory("pano-at-outbox").toFile()
         val dbFile = File(root, "room.sqlite")
         fun db() = Room.databaseBuilder<PanoDb>(name = dbFile.absolutePath)
@@ -88,7 +88,9 @@ class AtOutboxTest {
             first.appPassword(did, "test-test-test-test", AtSettings(completed = AtTarget.entries.toSet()), false)
             val track = ScrobbleData("Artist", "Same song", "Album", now, albumArtist = "Artist", duration = 182_320, appId = null)
             var expectedTid: String? = null
-            db().use { room ->
+            val firstDb = db()
+            try {
+                val room = firstDb
                 val before = AtOutbox({ room.atDeliveryDao() }, first, wire, {}, { now })
                 assertTrue(before.submit(track))
                 val pending = before.pending(did).single()
@@ -96,8 +98,10 @@ class AtOutboxTest {
                 expectedTid = pending.tid
                 assertEquals("RETRY", pending.state)
                 assertEquals(1, created.size)
-            }
-            db().use { room ->
+            } finally { firstDb.close() }
+            val restartedDb = db()
+            try {
+                val room = restartedDb
                 now += 120_000
                 val after = AtOutbox({ room.atDeliveryDao() }, auth(), wire, {}, { now })
                 assertFalse(after.drain())
@@ -108,7 +112,7 @@ class AtOutboxTest {
                 assertTrue(after.submit(track)) // identical metadata and actual play timestamp, different event
                 assertEquals(4, created.size)
                 assertEquals(2, created.keys.map { it.substringAfterLast('/') }.toSet().size)
-            }
+            } finally { restartedDb.close() }
         } finally { server.stop(0); root.deleteRecursively() }
     }
 }
