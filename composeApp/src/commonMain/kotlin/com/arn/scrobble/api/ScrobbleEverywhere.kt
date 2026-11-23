@@ -287,17 +287,15 @@ object ScrobbleEverywhere {
         }
 
         val pendingScrobblesDao = PanoDb.db.getPendingScrobblesDao()
-        val queuedAtproto = AtprotoPendingPlays(pendingScrobblesDao, PlatformStuff.mainPrefs).enqueue(scrobbleData)
-        if (queuedAtproto) PendingScrobblesWork.schedule(false)
-
-        val scrobblelables = Scrobblables.legacyWriteTargets.filter { it.userAccount.canScrobble }
+        val (atproto, scrobblelables) = Scrobblables.all.filter { it.userAccount.canScrobble }
+            .partition { it.userAccount.type.isAtproto }
 
         val scrobbleResults = scrobblelables
             .mapConcurrently(5) {
                 it to it.scrobble(scrobbleData)
             }.toMap()
 
-        val failed = (scrobbleResults.isEmpty() && !queuedAtproto) || scrobbleResults.values.any { !it.isSuccess }
+        val failed = (scrobbleResults.isEmpty() && atproto.isEmpty()) || scrobbleResults.values.any { !it.isSuccess }
 
         if (failed) {
             val services = if (scrobbleResults.isEmpty())
@@ -313,11 +311,14 @@ object ScrobbleEverywhere {
 
             pendingScrobblesDao.insert(scrobbleData, ScrobbleEvent.scrobble, services, exceptions)
             PendingScrobblesWork.schedule(false)
-        } else if (!queuedAtproto) {
+        } else if (atproto.isEmpty()) {
             // all success
             if (pendingScrobblesDao.canForceRetry())
                 PendingScrobblesWork.schedule(true)
         }
+
+        if (atproto.isNotEmpty() && AtprotoPendingPlays(pendingScrobblesDao, PlatformStuff.mainPrefs).enqueue(scrobbleData, atproto.map { it.userAccount }))
+            PendingScrobblesWork.schedule(false)
 
         // if it has album, update cache
 

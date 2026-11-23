@@ -9,12 +9,12 @@ import kotlinx.serialization.json.put
 import java.security.SecureRandom
 import java.time.Instant
 
-internal class AtprotoPlayRejected(message: String) : Exception(message)
-internal class AtprotoReconnect : Exception("Sign in again with the same AT Protocol account")
-internal class AtprotoPermissionMissing : Exception("Authorize this AT Protocol destination to send plays")
+class AtprotoPlayRejected(message: String) : Exception(message)
+class AtprotoReconnect : Exception("Sign in again with the same AT Protocol account")
+class AtprotoPermissionMissing : Exception("Authorize this AT Protocol destination to send plays")
 
 /** The queue keeps this address across restarts. It is not derived from the song or its play time. */
-internal object AtprotoEventTid {
+object AtprotoEventTid {
     private const val alphabet = "234567abcdefghijklmnopqrstuvwxyz"
     private val clockId = SecureRandom().nextInt(1024)
     private var lastMicros = 0L
@@ -29,7 +29,7 @@ internal object AtprotoEventTid {
 }
 
 /** Keep this mapping stable: retries reconstruct the same record from the persisted ScrobbleData. */
-internal fun ScrobbleData.atprotoPlay(type: AccountType): JsonObject {
+fun ScrobbleData.atprotoPlay(type: AccountType): JsonObject {
     val started = Instant.ofEpochMilli(timestamp).toString()
     fun String?.required(field: String, maxBytes: Int): String =
         this?.takeIf { it.isNotBlank() && it.encodeToByteArray().size <= maxBytes }

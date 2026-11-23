@@ -261,7 +261,7 @@ data class MainPrefs(
     val currentAccount
         get() = scrobbleAccounts.firstOrNull { it.type == currentAccountType }
 
-    internal val atprotoConnection
+    val atprotoConnection
         get() = scrobbleAccounts.firstOrNull { it.type.isAtproto }?.let { owner ->
             val destinations = scrobbleAccounts.filter {
                 it.type.isAtproto && it.authKey == owner.authKey && it.apiRoot == owner.apiRoot
@@ -406,7 +406,7 @@ data class MainPrefs(
     }
 }
 
-internal data class AtprotoConnection(
+data class AtprotoConnection(
     val did: String, val handle: String, val destinations: Set<AccountType>, val needsReconnect: Boolean,
 )
 

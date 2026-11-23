@@ -19,7 +19,7 @@ import pano_scrobbler.composeapp.generated.resources.Res
 import pano_scrobbler.composeapp.generated.resources.atproto_disconnect_failed
 import pano_scrobbler.composeapp.generated.resources.atproto_login_failed
 
-internal class AtprotoLoginViewModel : ViewModel() {
+class AtprotoLoginViewModel : ViewModel() {
     data class State(
         val busy: Boolean = false,
         val error: StringResource? = null,

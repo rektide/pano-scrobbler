@@ -14,16 +14,15 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.first
 import kotlin.coroutines.cancellation.CancellationException
 
-internal val atprotoMask = accountTypesToBitMask(setOf(AccountType.TEAL, AccountType.ROCKSKY))
+val atprotoMask = accountTypesToBitMask(setOf(AccountType.TEAL, AccountType.ROCKSKY))
 
 /** The shared Pending worker is the only sender. It can recover even if the first response is lost. */
-internal class AtprotoPendingPlays(
+class AtprotoPendingPlays(
     private val dao: PendingScrobblesDao,
     private val prefs: DataStore<MainPrefs>,
     private val client: () -> HttpClient = { Requesters.atprotoPdsClient },
 ) {
-    suspend fun enqueue(play: ScrobbleData): Boolean {
-        val accounts = prefs.data.first().atprotoTargets()
+    suspend fun enqueue(play: ScrobbleData, accounts: List<UserAccountSerializable>): Boolean {
         val owner = accounts.firstOrNull()?.authKey ?: return false
         dao.insertIgnore(PendingScrobble(
             scrobbleData = play,

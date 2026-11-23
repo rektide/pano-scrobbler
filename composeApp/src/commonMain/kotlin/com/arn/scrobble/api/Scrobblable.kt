@@ -174,7 +174,7 @@ enum class AccountType(val id: Int) {
     val isAtproto get() = this == TEAL || this == ROCKSKY
 }
 
-internal fun List<UserAccountSerializable>.withScrobbleAccount(account: UserAccountSerializable): List<UserAccountSerializable> {
+fun List<UserAccountSerializable>.withScrobbleAccount(account: UserAccountSerializable): List<UserAccountSerializable> {
     val filtered = filterNot { it.type == account.type }
     if (filtered.any { it.apiRoot == account.apiRoot && !(it.type.isAtproto && account.type.isAtproto) })
         throw ApiException(-1, "Account already exists")

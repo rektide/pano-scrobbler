@@ -47,7 +47,7 @@ import org.jetbrains.compose.resources.stringResource
 import pano_scrobbler.composeapp.generated.resources.*
 
 @Composable
-internal fun AtprotoLoginScreen(
+fun AtprotoLoginScreen(
     onDone: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,

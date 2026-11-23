@@ -41,7 +41,7 @@ import java.time.Instant
 import java.time.format.DateTimeParseException
 import kotlin.coroutines.cancellation.CancellationException
 
-internal val AccountType.playCollection: String
+val AccountType.playCollection: String
     get() = when (this) {
         AccountType.TEAL -> "fm.teal.feed.play"
         AccountType.ROCKSKY -> "app.rocksky.scrobble"
@@ -49,7 +49,7 @@ internal val AccountType.playCollection: String
     }
 
 /** Public history of the connected DID at its verified PDS; no AT session is used for reads. */
-internal class AtprotoScrobblable(
+class AtprotoScrobblable(
     account: UserAccountSerializable,
     private val client: () -> HttpClient = { Requesters.atprotoPdsClient },
 ) : Scrobblable(account) {

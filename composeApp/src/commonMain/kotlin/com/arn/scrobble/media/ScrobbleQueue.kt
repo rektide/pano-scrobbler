@@ -27,15 +27,9 @@ import kotlin.math.min
 import kotlin.time.Duration.Companion.milliseconds
 
 
-class ScrobbleQueue internal constructor(
+class ScrobbleQueue(
     private val scope: CoroutineScope,
-    private val submit: suspend (ScrobbleData) -> Unit,
-    private val submitNowPlayingEnabled: suspend () -> Boolean,
 ) {
-    constructor(scope: CoroutineScope) : this(scope, ScrobbleEverywhere::scrobble, {
-        PlatformStuff.mainPrefs.data.map { it.submitNowPlaying }.first()
-    })
-
     // delays scrobbling this hash until it becomes null again
     private var lockedHash: Int? = null
 
@@ -99,7 +93,8 @@ class ScrobbleQueue internal constructor(
         ) = coroutineScope {
             Logger.d { "will submit in ${submitAtTime - PlatformStuff.monotonicTimeMs()}ms" }
 
-            val submitNowPlaying = submitNowPlayingEnabled()
+            val submitNowPlaying =
+                PlatformStuff.mainPrefs.data.map { it.submitNowPlaying }.first()
 
             // now playing for a new track or after that of the previously paused track has expired
             if (
@@ -173,7 +168,7 @@ class ScrobbleQueue internal constructor(
                     sd
                 }
 
-                submit(scrobbleSd)
+                ScrobbleEverywhere.scrobble(scrobbleSd)
             }
 
             trackInfo.scrobbled()

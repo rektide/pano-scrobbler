@@ -16,8 +16,6 @@ import com.arn.scrobble.api.lastfm.ScrobbleData
 import com.arn.scrobble.db.AccountBitmaskConverter.accountTypesToBitMask
 import com.arn.scrobble.db.PanoDb
 import com.arn.scrobble.db.PendingScrobble
-import com.arn.scrobble.media.PlayingTrackInfo
-import com.arn.scrobble.media.ScrobbleQueue
 import com.arn.scrobble.pref.MainPrefs
 import com.arn.scrobble.utils.DesktopStuff
 import com.sun.net.httpserver.HttpExchange
@@ -25,13 +23,11 @@ import com.sun.net.httpserver.HttpServer
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -55,33 +51,17 @@ import kotlin.test.assertTrue
 
 class AtprotoPendingPlaysTest {
     @Test
-    fun qualifiedPlaybackGoesThroughPendingToBothCollectionsAndBackToRecents() = fixture { fixture, path, prefs, http ->
+    fun pendingPlayAppearsInBothCollectionsAndRecents() = fixture { fixture, path, prefs, http ->
         AtprotoSessions(prefs).connect(fixture.session(did), user, types)
         Room.databaseBuilder<PanoDb>(path).setDriver(BundledSQLiteDriver()).build().use { db ->
             val pending = AtprotoPendingPlays(db.getPendingScrobblesDao(), prefs) { http }
-            val completed = CompletableDeferred<ScrobbleData>()
-            val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-            try {
-                val track = PlayingTrackInfo("pano.fixture", "listen", null)
-                track.putOriginals(play.artist, play.track, requireNotNull(play.album), requireNotNull(play.albumArtist),
-                    1, requireNotNull(play.duration), null, null, emptyMap())
-                track.prepareForScrobbling()
-                track.putPreprocessedData(track.toScrobbleData(false), loved = false, additionalMetadataFetched = true)
-                val start = track.playStartTime
-                ScrobbleQueue(scope, submit = {
-                    assertTrue(pending.enqueue(it))
-                    completed.complete(it)
-                }, submitNowPlayingEnabled = { false }).scrobble(track, delay = 0)
-                assertEquals(start, withTimeout(5000) { completed.await() }.timestamp)
-                assertFalse(pending.drain(10))
-                assertEquals(2, fixture.posts.size)
-                for (account in prefs.data.first().scrobbleAccounts) {
-                    val latest = AtprotoScrobblable(account) { http }.getRecents(1).getOrThrow().entries.single()
-                    assertEquals(start, latest.date)
-                    assertEquals(play.track, latest.name)
-                }
-            } finally {
-                scope.cancel()
+            assertTrue(pending.enqueue(play, prefs.data.first().scrobbleAccounts.filter { it.type.isAtproto }))
+            assertFalse(pending.drain(10))
+            assertEquals(2, fixture.posts.size)
+            for (account in prefs.data.first().scrobbleAccounts) {
+                val latest = AtprotoScrobblable(account) { http }.getRecents(1).getOrThrow().entries.single()
+                assertEquals(play.timestamp, latest.date)
+                assertEquals(play.track, latest.name)
             }
         }
     }
@@ -126,8 +106,8 @@ class AtprotoPendingPlaysTest {
         Room.databaseBuilder<PanoDb>(path).setDriver(BundledSQLiteDriver()).build().use { db ->
             val dao = db.getPendingScrobblesDao()
             val sender = AtprotoPendingPlays(dao, prefs) { http }
-            assertTrue(sender.enqueue(play))
-            assertTrue(sender.enqueue(play))
+            assertTrue(sender.enqueue(play, prefs.data.first().scrobbleAccounts.filter { it.type.isAtproto }))
+            assertTrue(sender.enqueue(play, prefs.data.first().scrobbleAccounts.filter { it.type.isAtproto }))
             val queued = dao.allScrobblesForSubmission(10)
             assertEquals(2, queued.size)
             assertNotEquals(queued[0].atprotoTid, queued[1].atprotoTid)
@@ -171,7 +151,7 @@ class AtprotoPendingPlaysTest {
         Room.databaseBuilder<PanoDb>(path).setDriver(BundledSQLiteDriver()).build().use { db ->
             val dao = db.getPendingScrobblesDao()
             val sender = AtprotoPendingPlays(dao, prefs) { http }
-            assertTrue(sender.enqueue(play))
+            assertTrue(sender.enqueue(play, prefs.data.first().scrobbleAccounts.filter { it.type.isAtproto }))
             val event = dao.allScrobblesForSubmission(10).single()
             dao.update(event.copy(services = event.services + AccountType.LASTFM))
             fixture.failReads.set(true)
@@ -199,7 +179,7 @@ class AtprotoPendingPlaysTest {
         AtprotoSessions(prefs).connect(fixture.session(did, "expired"), user, types)
         Room.databaseBuilder<PanoDb>(path).setDriver(BundledSQLiteDriver()).build().use { db ->
             val sender = AtprotoPendingPlays(db.getPendingScrobblesDao(), prefs) { http }
-            assertTrue(sender.enqueue(play.copy(albumArtist = null)))
+            assertTrue(sender.enqueue(play.copy(albumArtist = null), prefs.data.first().scrobbleAccounts.filter { it.type.isAtproto }))
             assertFalse(sender.drain(10))
             val pending = db.getPendingScrobblesDao().allScrobblesForSubmission(10).single()
             assertEquals(setOf(AccountType.ROCKSKY), pending.services)

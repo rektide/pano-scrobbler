@@ -22,7 +22,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
 
-internal class AtprotoXrpcError(status: Int, val error: String?) : ApiException(status, "AT Protocol request failed") {
+class AtprotoXrpcError(status: Int, val error: String?) : ApiException(status, "AT Protocol request failed") {
     val expired get() = error == "ExpiredToken" || code == 401 && error in listOf("invalid_token", "InvalidToken")
 }
 
@@ -43,10 +43,10 @@ private suspend inline fun <reified T> HttpResponse.repoJson(): T {
 }
 
 @Serializable
-internal data class RepoRecord(val uri: String, val cid: String, val value: JsonObject? = null)
+data class RepoRecord(val uri: String, val cid: String, val value: JsonObject? = null)
 
 /** Ask the authoritative PDS about this exact key, not the service's search index. */
-internal suspend fun HttpClient.findPlay(pds: String, did: String, collection: String, rkey: String): RepoRecord? =
+suspend fun HttpClient.findPlay(pds: String, did: String, collection: String, rkey: String): RepoRecord? =
     try {
         prepareGet("$pds/xrpc/com.atproto.repo.getRecord") {
             parameter("repo", did)
@@ -60,20 +60,20 @@ internal suspend fun HttpClient.findPlay(pds: String, did: String, collection: S
 
 private val repoCid = Regex("bafyrei[a-z2-7]{51}[aeimquy4]")
 
-internal fun RepoRecord.receipt(did: String, collection: String, rkey: String): String {
+fun RepoRecord.receipt(did: String, collection: String, rkey: String): String {
     if (uri != "at://$did/$collection/$rkey" || !repoCid.matches(cid))
         throw ApiException(-1, "PDS returned a receipt for an invalid record address or CID")
     return cid
 }
 
-internal fun RepoRecord.matchesPlay(record: JsonObject): Boolean {
+fun RepoRecord.matchesPlay(record: JsonObject): Boolean {
     val timestamp = if ("playedTime" in record) "playedTime" else "createdAt"
     val saved = value ?: return false
     fun JsonObject.time() = (get(timestamp) as? JsonPrimitive)?.content?.let { runCatching { Instant.parse(it) }.getOrNull() }
     return record.time() != null && record.time() == saved.time() && (record - timestamp) == (saved - timestamp)
 }
 
-internal suspend fun HttpClient.createPlay(
+suspend fun HttpClient.createPlay(
     session: AtprotoAppPasswordSession, collection: String, rkey: String, record: JsonObject,
 ): RepoRecord {
     val payload = buildJsonObject {
@@ -96,7 +96,7 @@ internal suspend fun HttpClient.createPlay(
 @Serializable
 private class AppPasswordRotation(val did: String, val accessJwt: String, val refreshJwt: String, val active: Boolean = true)
 
-internal suspend fun HttpClient.rotateAppPassword(pds: String, did: String, token: String): AtprotoAppPasswordSession {
+suspend fun HttpClient.rotateAppPassword(pds: String, did: String, token: String): AtprotoAppPasswordSession {
     if (!token.isBearerToken()) throw AtprotoReconnect()
     val result = preparePost("$pds/xrpc/com.atproto.server.refreshSession") {
         header(HttpHeaders.Authorization, "Bearer $token")

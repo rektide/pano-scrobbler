@@ -76,7 +76,7 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
     }
 
     /** Serialize account replacement against authenticated sends using MainPrefs' multiprocess update lock. */
-    internal suspend fun send(
+    suspend fun send(
         account: UserAccountSerializable,
         client: HttpClient = Requesters.atprotoPdsClient,
         action: suspend (AtprotoAppPasswordSession) -> RepoRecord,
