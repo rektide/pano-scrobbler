@@ -101,8 +101,8 @@ class PlayingTrackInfo(
     var timePlayed: Long = cachedTrackInfo?.timePlayed ?: 0L
         private set
     var lastScrobbleHash: Int = cachedTrackInfo?.lastScrobbleHash ?: 0
-    @Volatile internal var atPlayback: AtPlayback? = null
         private set
+    @Volatile internal var atPlayback: AtPlayback? = null
 
     val sessionStartTime = PlatformStuff.monotonicTimeMs()
 
