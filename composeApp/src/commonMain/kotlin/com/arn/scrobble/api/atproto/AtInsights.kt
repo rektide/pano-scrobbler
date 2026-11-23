@@ -34,7 +34,7 @@ internal fun AtPublic.insights(query: AtHistoryQuery, section: AtSection, period
             checkAt(doc.text("did") == did && doc.text("period") == period.teal)
             val values = when (section) {
                 AtSection.ARTISTS, AtSection.RELEASES -> doc.rows(if (section == AtSection.ARTISTS) "artists" else "releases").mapIndexed { i, j ->
-                    val name = j.text("name") ?: throw AtFailure(AtProblem.RESPONSE)
+                    val name = j.text(if (section == AtSection.ARTISTS) "name" else "releaseName") ?: throw AtFailure(AtProblem.RESPONSE)
                     val count = j.number("plays") ?: throw AtFailure(AtProblem.RESPONSE)
                     AtInsight(i.toString(), name, "#${i + 1} · $count plays")
                 }

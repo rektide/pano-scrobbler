@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun hasAtAccount(): Boolean {
     val changed by atAuthority.changed.collectAsState()
-    val notices by atAuthority.notices.collectAsState()
     val present by produceState(false, changed) {
         value = try { atAuthority.account().identity != null } catch (_: AtFailure) { false }
     }
@@ -33,6 +32,7 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
     var confirmDisconnect by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val changed by atAuthority.changed.collectAsState()
+    val notices by atAuthority.notices.collectAsState()
 
     suspend fun reload() {
         val loaded = atAuthority.account()

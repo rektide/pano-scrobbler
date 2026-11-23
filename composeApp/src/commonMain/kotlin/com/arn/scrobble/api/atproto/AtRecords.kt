@@ -81,6 +81,9 @@ internal fun ScrobbleData.playRecord(target: AtTarget): JsonObject {
                 put("duration", duration?.takeIf { it > 0 } ?: throw AtFailure(AtProblem.INPUT))
                 put("createdAt", timestamp)
                 recording?.let { put("mbid", it) }
+                artistIds?.let { ids -> put("artists", buildJsonArray {
+                    artistNames.zip(ids).forEach { (name, id) -> add(buildJsonObject { put("name", name); put("mbid", id) }) }
+                }) }
                 trackNumber?.takeIf { it > 0 }?.let { put("trackNumber", it) }
             }
         }
