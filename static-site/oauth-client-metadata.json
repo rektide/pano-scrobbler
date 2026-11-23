@@ -1,9 +1,9 @@
 {
-  "client_id": "https://kawaiidango.github.io/pano-scrobbler/oauth-client-metadata.json",
+  "client_id": "https://rektide.github.io/pano-scrobbler/oauth-client-metadata.json",
   "client_name": "Pano Scrobbler",
-  "client_uri": "https://kawaiidango.github.io/pano-scrobbler/",
+  "client_uri": "https://rektide.github.io/pano-scrobbler/",
   "application_type": "native",
-  "redirect_uris": ["io.github.kawaiidango:/pano-scrobbler/oauth/callback"],
+  "redirect_uris": ["io.github.rektide:/pano-scrobbler/oauth/callback"],
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "none",
