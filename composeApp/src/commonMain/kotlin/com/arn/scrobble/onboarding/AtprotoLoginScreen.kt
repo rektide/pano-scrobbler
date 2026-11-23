@@ -53,6 +53,7 @@ internal fun AtprotoLoginScreen(
     viewModel: AtprotoLoginViewModel = viewModel { AtprotoLoginViewModel() },
 ) {
     val connection by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection }
+    val needsReconnect by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection != null && it.atprotoSession == null }
     val hasScrobbler by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccount != null }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var replacing by rememberSaveable(connection) { mutableStateOf(false) }
@@ -112,6 +113,9 @@ internal fun AtprotoLoginScreen(
             }
         }
 
+        if (needsReconnect) {
+            connection?.let { Text(stringResource(Res.string.atproto_reconnect_needed, it.handle)) }
+        }
         Text(stringResource(Res.string.atproto_sign_in_only), style = MaterialTheme.typography.bodyMedium)
 
         if (state.awaitingBrowser) {

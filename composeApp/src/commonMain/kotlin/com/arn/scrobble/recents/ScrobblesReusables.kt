@@ -75,6 +75,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pano_scrobbler.composeapp.generated.resources.Res
+import pano_scrobbler.composeapp.generated.resources.atproto_pending_owner
 import pano_scrobbler.composeapp.generated.resources.album
 import pano_scrobbler.composeapp.generated.resources.artist
 import pano_scrobbler.composeapp.generated.resources.block
@@ -524,6 +525,9 @@ fun PendingDropdownMenu(
                         }.joinToString(", "),
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    pendingScrobble.atprotoDid?.let {
+                        Text(stringResource(Res.string.atproto_pending_owner, it), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         },

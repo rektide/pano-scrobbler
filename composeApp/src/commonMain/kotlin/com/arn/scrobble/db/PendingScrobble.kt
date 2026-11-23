@@ -28,4 +28,11 @@ data class PendingScrobble(
 
     @ColumnInfo(defaultValue = "0")
     val canForceRetry: Boolean = false,
+
+    val atprotoDid: String? = null,
+    val atprotoTid: String? = null,
+    val tealCid: String? = null,
+    val rockskyCid: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val atprotoBlocked: Int = 0,
 )

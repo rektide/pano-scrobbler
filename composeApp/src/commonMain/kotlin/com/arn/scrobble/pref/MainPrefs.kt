@@ -136,6 +136,7 @@ data class MainPrefs(
     val discordRpc: DiscordRpcPrefs = DiscordRpcPrefs(),
     val proxy: ProxyPrefs = ProxyPrefs(),
     val atprotoSession: AtprotoSession? = null,
+    val atprotoRotation: String? = null,
 ) {
 
     @Serializable
@@ -254,12 +255,12 @@ data class MainPrefs(
         get() = scrobbleAccounts.firstOrNull { it.type == currentAccountType }
 
     internal val atprotoConnection
-        get() = atprotoSession?.let { session ->
+        get() = scrobbleAccounts.firstOrNull { it.type.isAtproto }?.let { owner ->
             val destinations = scrobbleAccounts.filter {
-                it.type.isAtproto && it.authKey == session.did && it.apiRoot == session.pds
+                it.type.isAtproto && it.authKey == owner.authKey && it.apiRoot == owner.apiRoot
             }
             destinations.firstOrNull()?.let {
-                AtprotoConnection(session.did, it.user.name, destinations.mapTo(linkedSetOf()) { it.type })
+                AtprotoConnection(owner.authKey, it.user.name, destinations.mapTo(linkedSetOf()) { it.type })
             }
         }
 

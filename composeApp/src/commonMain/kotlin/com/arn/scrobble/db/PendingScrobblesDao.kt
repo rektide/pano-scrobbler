@@ -5,6 +5,7 @@ import androidx.room3.Delete
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
+import androidx.room3.Transaction
 import androidx.room3.Update
 import com.arn.scrobble.api.AccountType
 import com.arn.scrobble.api.ScrobbleEvent
@@ -25,6 +26,27 @@ interface PendingScrobblesDao {
 
     @Query("SELECT * FROM $tableName WHERE event = 'scrobble' ORDER BY timestamp ASC LIMIT :limit")
     suspend fun allScrobblesForSubmission(limit: Int): List<PendingScrobble>
+
+    @Query("SELECT * FROM $tableName WHERE event = 'scrobble' AND services & ~:atprotoMask != 0 ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun legacyScrobblesForSubmission(atprotoMask: Int, limit: Int): List<PendingScrobble>
+
+    @Query("SELECT * FROM $tableName WHERE event = 'scrobble' AND atprotoDid = :did AND atprotoTid IS NOT NULL AND services & :enabled & ~atprotoBlocked != 0 ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun atprotoScrobblesForSubmission(did: String, enabled: Int, limit: Int): List<PendingScrobble>
+
+    @Query("UPDATE $tableName SET services = services & ~:mask, tealCid = COALESCE(:tealCid, tealCid), rockskyCid = COALESCE(:rockskyCid, rockskyCid) WHERE _id = :id")
+    suspend fun clearServices(id: Long, mask: Int, tealCid: String? = null, rockskyCid: String? = null)
+
+    @Query("DELETE FROM $tableName WHERE _id = :id AND services = 0")
+    suspend fun deleteDelivered(id: Long)
+
+    @Transaction
+    suspend fun acknowledgeServices(id: Long, mask: Int, tealCid: String? = null, rockskyCid: String? = null) {
+        clearServices(id, mask, tealCid, rockskyCid)
+        deleteDelivered(id)
+    }
+
+    @Query("UPDATE $tableName SET atprotoBlocked = atprotoBlocked | :mask WHERE _id = :id")
+    suspend fun blockAtproto(id: Long, mask: Int)
 
     @Query("SELECT * FROM $tableName WHERE event != 'scrobble' ORDER BY timestamp ASC LIMIT :limit")
     suspend fun allLovesForSubmission(limit: Int): List<PendingScrobble>

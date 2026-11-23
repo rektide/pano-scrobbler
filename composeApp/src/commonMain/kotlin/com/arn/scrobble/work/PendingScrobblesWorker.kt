@@ -6,6 +6,8 @@ import com.arn.scrobble.api.Scrobblable
 import com.arn.scrobble.api.Scrobblables
 import com.arn.scrobble.api.ScrobbleEvent
 import com.arn.scrobble.api.ScrobbleResult
+import com.arn.scrobble.api.atproto.AtprotoPendingPlays
+import com.arn.scrobble.api.atproto.atprotoMask
 import com.arn.scrobble.api.lastfm.Album
 import com.arn.scrobble.api.lastfm.ApiException
 import com.arn.scrobble.api.lastfm.Artist
@@ -13,6 +15,7 @@ import com.arn.scrobble.api.lastfm.Track
 import com.arn.scrobble.db.AccountBitmaskConverter
 import com.arn.scrobble.db.PanoDb
 import com.arn.scrobble.db.PendingScrobble
+import com.arn.scrobble.utils.PlatformStuff
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -44,7 +47,8 @@ class PendingScrobblesWorker(
             submitLoves()
             submitScrobbles()
 
-            errored = failsMap.values.any { it > 0 }
+            val retryAtproto = AtprotoPendingPlays(dao, PlatformStuff.mainPrefs).drain(HARD_LIMIT)
+            errored = retryAtproto || failsMap.values.any { it > 0 }
         }
 
         return if (errored) {
@@ -55,7 +59,7 @@ class PendingScrobblesWorker(
     }
 
     private suspend fun submitScrobbles() {
-        val entries = dao.allScrobblesForSubmission(HARD_LIMIT)
+        val entries = dao.legacyScrobblesForSubmission(atprotoMask, HARD_LIMIT)
 
         for (chunk in entries.chunked(BATCH_SIZE)) {
             submitScrobbleBatch(chunk)
@@ -77,7 +81,7 @@ class PendingScrobblesWorker(
             val scrobbleResults = mutableMapOf<Scrobblable, Result<ScrobbleResult>>()
             // if an error occurs, there will be only one result
 
-            Scrobblables.writeTargets.forEach {
+            Scrobblables.legacyWriteTargets.forEach {
                 val filteredData by lazy { filterForService(it, entries) }
                 if (filteredData.isNotEmpty()) {
                     val result = it.scrobble(filteredData.map { it.scrobbleData })
@@ -99,8 +103,7 @@ class PendingScrobblesWorker(
             val idsToDelete = mutableSetOf<Long>()
 
             entries.forEach { pendingScrobble ->
-                val services = pendingScrobble.services -
-                        scrobbleResults.mapNotNull { (scrobblable, result) ->
+                val delivered = scrobbleResults.mapNotNull { (scrobblable, result) ->
                             val err = result.exceptionOrNull() as? ApiException
 
                             if (err?.code == 6 ||
@@ -112,11 +115,11 @@ class PendingScrobblesWorker(
                                 null
                         }.toSet()
 
+                val services = pendingScrobble.services - delivered
                 if (services.isEmpty())
                     idsToDelete += pendingScrobble._id
                 else if (services != pendingScrobble.services) {
-                    val newPendingScrobble = pendingScrobble.copy(services = services)
-                    dao.update(newPendingScrobble)
+                    dao.acknowledgeServices(pendingScrobble._id, AccountBitmaskConverter.accountTypesToBitMask(delivered))
                 }
             }
 
@@ -146,7 +149,7 @@ class PendingScrobblesWorker(
 
             val loveResults = mutableMapOf<Scrobblable, Result<ScrobbleResult>>()
 
-            Scrobblables.writeTargets.forEach {
+            Scrobblables.legacyWriteTargets.forEach {
                 val shouldSubmit by lazy { filterOneForService(it, entry) }
                 if (shouldSubmit) {
                     val track = Track(
@@ -208,7 +211,7 @@ class PendingScrobblesWorker(
 
     private suspend fun deleteForLoggedOutServices() {
         val loggedOutAccounts =
-            AccountType.entries.toSet() - Scrobblables.writeTargets.map { it.userAccount.type }.toSet()
+            AccountType.entries.filterNot { it.isAtproto }.toSet() - Scrobblables.legacyWriteTargets.map { it.userAccount.type }.toSet()
 
         val loggedOutAccountsBitset =
             AccountBitmaskConverter.accountTypesToBitMask(loggedOutAccounts)

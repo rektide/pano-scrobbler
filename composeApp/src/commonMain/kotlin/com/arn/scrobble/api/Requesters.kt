@@ -134,6 +134,7 @@ object Requesters {
                 if (requestDns != null) dns = requestDns
 
                 config {
+                    if (!redirects) retryOnConnectionFailure(false)
                     if (proxyVal.type == MainPrefs.ProxyPrefs.Type.HTTP && proxyVal.hasAuth) {
                         proxyAuthenticator { _, response ->
                             val credential =

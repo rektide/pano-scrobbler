@@ -19,8 +19,10 @@
     <string name="atproto_disconnect" translatable="false">Disconnect</string>
     <string name="atproto_login_failed" translatable="false">Could not sign in. Check your handle and app password and try again.</string>
     <string name="atproto_disconnect_failed" translatable="false">Could not disconnect. Try again.</string>
-    <string name="atproto_sign_in_only" translatable="false">Select Teal or Rocksky in your profile menu to browse Recents. Scrobbling is not available yet.</string>
-    <string name="atproto_public_recents" translatable="false">Public history from your AT Protocol server · Read only</string>
+    <string name="atproto_sign_in_only" translatable="false">Pano writes completed plays to the public history of each selected destination. If Rocksky already mirrors plays to Teal, sending to both directly can create duplicate Teal plays. Pano does not change your mirror settings.</string>
+    <string name="atproto_public_recents" translatable="false">Public history from your AT Protocol server</string>
+    <string name="atproto_reconnect_needed" translatable="false">Sign in again as %1$s to resume sending its pending plays.</string>
+    <string name="atproto_pending_owner" translatable="false">Only the original AT Protocol account can send this play: %1$s</string>
     <string name="atproto_open_browser" translatable="false">Sign in with browser</string>
     <string name="atproto_waiting_for_browser" translatable="false">Finish authorizing in your browser, then return to Pano.</string>
     <string name="atproto_paste_callback_info" translatable="false">If the browser cannot open Pano, copy the full callback URL from the browser and paste it below.</string>

@@ -31,8 +31,8 @@ const val ATPROTO_CLIENT_ID = "https://rektide.github.io/pano-scrobbler/oauth-cl
 const val ATPROTO_REDIRECT_URI = "io.github.rektide:/pano-scrobbler/oauth/callback"
 
 enum class AtprotoOAuthPermission(val scope: String) {
-    TEAL_SCROBBLES("repo:fm.teal.feed.play?action=create&action=delete"),
-    ROCKSKY_SCROBBLES("repo:app.rocksky.scrobble?action=create&action=delete"),
+    TEAL_SCROBBLES("repo:fm.teal.feed.play?action=create"),
+    ROCKSKY_SCROBBLES("repo:app.rocksky.scrobble?action=create"),
     TEAL_NOW_PLAYING("repo:fm.teal.actor.status?action=create&action=update&action=delete"),
     ROCKSKY_NOW_PLAYING("repo:app.rocksky.actor.status?action=create&action=update&action=delete"),
     ROCKSKY_LIKES("repo:app.rocksky.like?action=create&action=delete"),
@@ -210,9 +210,31 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
 
 private val oauthRandom = SecureRandom()
 
+internal fun AtprotoOAuthSession.canCreate(collection: String) = scopes.any {
+    it.substringBefore('?') == "repo:$collection" &&
+        "action=create" in it.substringAfter('?', "").split('&')
+}
+
+internal suspend fun HttpClient.rotateOAuth(
+    session: AtprotoOAuthSession, refresh: String, server: AtprotoOAuthServer,
+): AtprotoOAuthSession {
+    if (server.issuer != session.issuer) throw AtprotoReconnect()
+    val token = oauthPost(server.token, session.dpop, AtprotoTokenResponse.serializer(), listOf(
+        "client_id" to session.clientId,
+        "grant_type" to "refresh_token",
+        "refresh_token" to refresh,
+    ))
+    val granted = token.scope.split(' ').map(::canonicalScope).toSet()
+    if (token.subject != session.did || !token.tokenType.equals("DPoP", ignoreCase = true) || token.expiresIn <= 0 ||
+        !token.accessToken.isOAuthCredential() || token.refreshToken?.isOAuthCredential() != true ||
+        "atproto" !in granted || !session.scopes.containsAll(granted)) throw AtprotoReconnect()
+    return AtprotoOAuthSession(session.did, session.pds, session.issuer, session.clientId, granted,
+        Clock.System.now() + token.expiresIn.seconds, token.accessToken, token.refreshToken, session.dpop)
+}
+
 private fun randomOAuthValue() = Base64URL.encode(ByteArray(32).also(oauthRandom::nextBytes)).toString()
 
-private fun String.isOAuthCredential() = isNotEmpty() && all { it in '!'..'~' }
+internal fun String.isOAuthCredential() = isNotEmpty() && all { it in '!'..'~' }
 
 private fun canonicalScope(scope: String): String = scope.substringBefore('?').let { name ->
     if ('?' !in scope) name else "$name?${scope.substringAfter('?').split('&').sorted().joinToString("&")}"
@@ -224,13 +246,13 @@ private fun canonicalScope(scope: String): String = scope.substringBefore('?').l
  */
 @Serializable(with = AtprotoOAuthDpop.Serializer::class)
 class AtprotoOAuthDpop(private val key: ECKey) {
-    private val nonces = mutableMapOf<String, String>()
+    private val nonces = java.util.concurrent.ConcurrentHashMap<Pair<String, Boolean>, String>()
 
-    fun proof(method: String, url: HttpUrl, accessToken: String? = null): String =
-        key.atprotoDpop(method, url, nonces[url.oauthOrigin()], accessToken)
+    fun proof(method: String, url: HttpUrl, accessToken: String? = null, resource: Boolean = false): String =
+        key.atprotoDpop(method, url, nonces[url.oauthOrigin() to resource], accessToken)
 
-    fun rememberNonce(url: HttpUrl, nonce: String) {
-        nonces[url.oauthOrigin()] = nonce
+    fun rememberNonce(url: HttpUrl, nonce: String, resource: Boolean = false) {
+        nonces[url.oauthOrigin() to resource] = nonce
     }
 
     // Only the token-bound key is durable; nonces are per-origin request state.

@@ -2,6 +2,7 @@ package com.arn.scrobble.api.atproto
 
 import androidx.datastore.core.DataStore
 import com.arn.scrobble.api.AccountType
+import com.arn.scrobble.api.Requesters
 import com.arn.scrobble.api.UserAccountSerializable
 import com.arn.scrobble.api.UserCached
 import com.arn.scrobble.api.withScrobbleAccount
@@ -9,6 +10,10 @@ import com.arn.scrobble.pref.MainPrefs
 import com.arn.scrobble.utils.PlatformStuff
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
+import io.ktor.client.HttpClient
+import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Clock
 
 @Serializable
 sealed interface AtprotoSession {
@@ -23,7 +28,7 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
         require(session.isForThisClient())
         require(destinations.isNotEmpty() && destinations.all { it.isAtproto })
         prefs.updateData { p ->
-            val sameDid = p.atprotoSession?.did == session.did
+            val sameDid = p.atprotoConnection?.did == session.did
             val previous = p.scrobbleAccounts.filter { it.type.isAtproto }
             var accounts = p.scrobbleAccounts.filterNot { it.type.isAtproto && (!sameDid || it.type !in destinations) }
             for (type in destinations) {
@@ -34,6 +39,7 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
             }
             p.copy(
                 atprotoSession = session,
+                atprotoRotation = null,
                 scrobbleAccounts = accounts,
                 currentAccountType = p.selectionIn(accounts),
                 drawerData = p.drawerData.filterKeys { !it.isAtproto || sameDid && it in destinations },
@@ -57,7 +63,7 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
             check(p.atprotoSession?.let { it.did == session.did && it.pds == session.pds } == true) {
                 "AT Protocol account is no longer connected"
             }
-            p.copy(atprotoSession = session)
+            p.copy(atprotoSession = session, atprotoRotation = null)
         }
     }
 
@@ -74,10 +80,97 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
     suspend fun disconnect() {
         prefs.updateData { p ->
             val accounts = p.scrobbleAccounts.filterNot { it.type.isAtproto }
-            p.copy(atprotoSession = null, scrobbleAccounts = accounts, currentAccountType = p.selectionIn(accounts),
+            p.copy(atprotoSession = null, atprotoRotation = null, scrobbleAccounts = accounts, currentAccountType = p.selectionIn(accounts),
                 drawerData = p.drawerData.filterKeys { !it.isAtproto })
         }
     }
+
+    /** Serialize account replacement against authenticated sends using MainPrefs' multiprocess update lock. */
+    internal suspend fun send(
+        account: UserAccountSerializable,
+        client: HttpClient = Requesters.atprotoRepoReader,
+        action: suspend (AtprotoSession) -> RepoRecord,
+    ): RepoRecord {
+        val initial = restore(account) ?: throw AtprotoReconnect()
+        val available = if (initial is AtprotoOAuthSession && initial.expiresAt <= Clock.System.now()) {
+            refresh(account, client, initial)
+        } else initial
+        suspend fun post(expected: AtprotoSession): RepoRecord {
+            var receipt: RepoRecord? = null
+            prefs.updateData { prefs ->
+                val session = prefs.writeSession(account)
+                if (session.authorization() != expected.authorization()) throw AtprotoReconnect()
+                if (session is AtprotoOAuthSession && !session.canCreate(account.type.playCollection))
+                    throw AtprotoPermissionMissing()
+                receipt = action(session)
+                prefs
+            }
+            return requireNotNull(receipt)
+        }
+        return try {
+            post(available)
+        } catch (e: AtprotoXrpcError) {
+            if (!e.expired) throw e
+            val rotated = refresh(account, client, available)
+            try {
+                post(rotated)
+            } catch (e: AtprotoXrpcError) {
+                if (e.expired) throw AtprotoReconnect() else throw e
+            }
+        }
+    }
+
+    /** Remove the old refresh token durably before sending it; a crash or uncertain rotation needs reconnect. */
+    private suspend fun refresh(account: UserAccountSerializable, http: HttpClient, expected: AtprotoSession): AtprotoSession {
+        // Discovery does not consume the token. Preserve it if the server cannot be reached.
+        val server = if (expected is AtprotoOAuthSession) {
+            http.discoverAtprotoOAuth(expected.pds).also { if (it.issuer != expected.issuer) throw AtprotoReconnect() }
+        } else null
+        val attempt = UUID.randomUUID().toString()
+        var useSession: AtprotoSession? = null
+        prefs.updateData { p ->
+            val session = p.writeSession(account)
+            if (session.authorization() != expected.authorization()) {
+                useSession = session
+                p
+            } else {
+                when (session) {
+                    is AtprotoAppPasswordSession -> if (!session.refreshJwt.isOAuthCredential()) throw AtprotoReconnect()
+                    is AtprotoOAuthSession -> if (session.refreshToken?.isOAuthCredential() != true) throw AtprotoReconnect()
+                }
+                p.copy(atprotoSession = null, atprotoRotation = attempt)
+            }
+        }
+        useSession?.let { return it }
+        val session = try {
+            when (expected) {
+                is AtprotoAppPasswordSession -> http.rotateAppPassword(expected.pds, expected.did, expected.refreshJwt)
+                is AtprotoOAuthSession -> http.rotateOAuth(expected, requireNotNull(expected.refreshToken), requireNotNull(server))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            throw AtprotoReconnect()
+        }
+        prefs.updateData { p ->
+            if (p.atprotoRotation != attempt || p.atprotoConnection?.did != session.did) throw AtprotoReconnect()
+            p.copy(atprotoSession = session, atprotoRotation = null)
+        }
+        return session
+    }
+
+    private fun AtprotoSession.authorization(): String = when (this) {
+        is AtprotoAppPasswordSession -> accessJwt
+        is AtprotoOAuthSession -> accessToken
+    }
+
+    private fun MainPrefs.hasDestination(account: UserAccountSerializable) = scrobbleAccounts.any {
+        it.type == account.type && it.authKey == account.authKey && it.apiRoot == account.apiRoot && it.canScrobble
+    }
+
+    private fun MainPrefs.writeSession(account: UserAccountSerializable): AtprotoSession =
+        atprotoSession?.takeIf { hasDestination(account) && it.did == account.authKey && it.pds == account.apiRoot && it.isForThisClient() }
+            ?: throw AtprotoReconnect()
 
     private fun MainPrefs.selectionIn(accounts: List<UserAccountSerializable>) =
         currentAccountType.takeIf { selected -> accounts.any { it.type == selected } }

@@ -11,6 +11,7 @@ import com.arn.scrobble.api.atproto.AtprotoSession
 import com.arn.scrobble.api.atproto.AtprotoSessions
 import com.arn.scrobble.api.atproto.signInWithAppPassword
 import com.arn.scrobble.utils.PlatformStuff
+import com.arn.scrobble.work.PendingScrobblesWork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,6 +109,7 @@ internal class AtprotoLoginViewModel : ViewModel() {
 
     private suspend fun connect(session: AtprotoSession, handle: String, destinations: Set<AccountType>) {
         sessions.connect(session, UserCached(handle, "", "", "", 0), destinations)
+        PendingScrobblesWork.schedule(false)
         mutableState.update { it.copy(signedIn = true) }
     }
 

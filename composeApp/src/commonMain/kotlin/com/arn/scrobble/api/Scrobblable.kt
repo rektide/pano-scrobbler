@@ -172,7 +172,6 @@ enum class AccountType(val id: Int) {
 
     val isCustom get() = this != LASTFM && this != LISTENBRAINZ && this != LIBREFM && this != FILE
     val isAtproto get() = this == TEAL || this == ROCKSKY
-    val isReadOnly get() = isAtproto
 }
 
 internal fun List<UserAccountSerializable>.withScrobbleAccount(account: UserAccountSerializable): List<UserAccountSerializable> {
@@ -212,7 +211,8 @@ object Scrobblables {
             return scrobblablesCache.values
         }
 
-    val writeTargets get() = all.filterNot { it.userAccount.type.isReadOnly }
+    // AT completed plays use the durable Pending path instead of the direct Scrobblable fan-out.
+    val legacyWriteTargets get() = all.filterNot { it.userAccount.type.isAtproto }
 
     val current
         @Synchronized

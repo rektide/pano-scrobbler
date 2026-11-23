@@ -2,6 +2,7 @@ package com.arn.scrobble.api
 
 import androidx.collection.LruCache
 import co.touchlab.kermit.Logger
+import com.arn.scrobble.api.atproto.AtprotoPendingPlays
 import com.arn.scrobble.api.deezer.DeezerTrack
 import com.arn.scrobble.api.lastfm.Album
 import com.arn.scrobble.api.lastfm.Artist
@@ -264,7 +265,7 @@ object ScrobbleEverywhere {
     }
 
     suspend fun nowPlaying(scrobbleData: ScrobbleData): Map<Scrobblable, Result<ScrobbleResult>> {
-        return Scrobblables.writeTargets
+        return Scrobblables.legacyWriteTargets
             .filter { it.userAccount.canScrobble }
             .mapConcurrently(5) {
                 it to it.updateNowPlaying(scrobbleData)
@@ -285,16 +286,18 @@ object ScrobbleEverywhere {
                 .insert(scrobbleSource)
         }
 
-        val scrobblelables = Scrobblables.writeTargets.filter { it.userAccount.canScrobble }
+        val pendingScrobblesDao = PanoDb.db.getPendingScrobblesDao()
+        val queuedAtproto = AtprotoPendingPlays(pendingScrobblesDao, PlatformStuff.mainPrefs).enqueue(scrobbleData)
+        if (queuedAtproto) PendingScrobblesWork.schedule(false)
+
+        val scrobblelables = Scrobblables.legacyWriteTargets.filter { it.userAccount.canScrobble }
 
         val scrobbleResults = scrobblelables
             .mapConcurrently(5) {
                 it to it.scrobble(scrobbleData)
             }.toMap()
 
-        val pendingScrobblesDao = PanoDb.db.getPendingScrobblesDao()
-
-        val failed = scrobbleResults.isEmpty() || scrobbleResults.values.any { !it.isSuccess }
+        val failed = (scrobbleResults.isEmpty() && !queuedAtproto) || scrobbleResults.values.any { !it.isSuccess }
 
         if (failed) {
             val services = if (scrobbleResults.isEmpty())
@@ -310,7 +313,7 @@ object ScrobbleEverywhere {
 
             pendingScrobblesDao.insert(scrobbleData, ScrobbleEvent.scrobble, services, exceptions)
             PendingScrobblesWork.schedule(false)
-        } else {
+        } else if (!queuedAtproto) {
             // all success
             if (pendingScrobblesDao.canForceRetry())
                 PendingScrobblesWork.schedule(true)
@@ -343,7 +346,7 @@ object ScrobbleEverywhere {
 
         val dao = PanoDb.db.getPendingScrobblesDao()
         val pl = dao.findLoved(track.artist.name, track.name)
-        val allScrobblables = Scrobblables.writeTargets
+        val allScrobblables = Scrobblables.legacyWriteTargets
         if (pl != null) {
             if (pl.event == ScrobbleEvent.unlove) {
                 val services = pl.services + allScrobblables.map { it.userAccount.type }

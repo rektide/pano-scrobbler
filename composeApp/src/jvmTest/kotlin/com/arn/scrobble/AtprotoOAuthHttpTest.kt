@@ -7,6 +7,10 @@ import com.arn.scrobble.api.atproto.AtprotoOAuth
 import com.arn.scrobble.api.atproto.AtprotoOAuthAttempts
 import com.arn.scrobble.api.atproto.AtprotoOAuthAttempt
 import com.arn.scrobble.api.atproto.AtprotoOAuthPermission
+import com.arn.scrobble.api.atproto.AtprotoOAuthSession
+import com.arn.scrobble.api.atproto.createPlay
+import com.arn.scrobble.api.atproto.discoverAtprotoOAuth
+import com.arn.scrobble.api.atproto.rotateOAuth
 import com.arn.scrobble.api.lastfm.ApiException
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.crypto.ECDSAVerifier
@@ -26,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.buildJsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
@@ -42,6 +47,31 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AtprotoOAuthHttpTest {
+    @Test
+    fun rotatesAndSignsBothRepositoryWritesWithResourceNonceAndAth() = runBlocking {
+        Fixture().use { fixture ->
+            val original = fixture.start(setOf(AtprotoOAuthPermission.TEAL_SCROBBLES, AtprotoOAuthPermission.ROCKSKY_SCROBBLES))
+                .complete(fixture.callback())
+            val rotated = fixture.rotate(original)
+            assertEquals("refresh_token", fixture.posts("/token").last().form["grant_type"])
+            assertEquals("fixture-refresh", fixture.posts("/token").last().form["refresh_token"])
+            val collections = listOf("fm.teal.feed.play", "app.rocksky.scrobble")
+            collections.forEach { collection ->
+                assertEquals("at://${fixture.identity.did}/$collection/3jzfcijpj2z2a", fixture.write(rotated, collection))
+            }
+            val requests = fixture.posts("/xrpc/com.atproto.repo.createRecord")
+            assertEquals(listOf(null, "pds-challenge", "pds-success"), requests.map { it.proof.jwtClaimsSet.getStringClaim("nonce") })
+            assertEquals(3, requests.map { it.proof.jwtClaimsSet.jwtid }.toSet().size)
+            requests.forEach { request ->
+                assertEquals("DPoP fixture-access", request.authorization)
+                assertEquals("${fixture.pds}/xrpc/com.atproto.repo.createRecord", request.proof.jwtClaimsSet.getStringClaim("htu"))
+                assertEquals(Base64URL.encode(MessageDigest.getInstance("SHA-256").digest("fixture-access".encodeToByteArray())).toString(),
+                    request.proof.jwtClaimsSet.getStringClaim("ath"))
+                assertTrue(request.proof.verify(ECDSAVerifier(request.proof.header.jwk as ECKey)))
+            }
+        }
+    }
+
     @Test
     fun startsFromAHandleVerifiedByItsDidDocument() = runBlocking {
         Fixture().use { fixture ->
@@ -120,7 +150,7 @@ class AtprotoOAuthHttpTest {
             assertEquals(fixture.identity.did, session.did)
             assertEquals(fixture.issuer, session.issuer)
             assertEquals(fixture.pds, session.pds)
-            assertEquals(setOf("atproto", "repo:fm.teal.feed.play?action=create&action=delete"), session.scopes)
+            assertEquals(setOf("atproto", "repo:fm.teal.feed.play?action=create"), session.scopes)
             assertEquals("fixture-access", session.accessToken)
             assertEquals("fixture-refresh", session.refreshToken)
 
@@ -131,7 +161,7 @@ class AtprotoOAuthHttpTest {
             val form = par.first().form
             assertEquals("S256", form["code_challenge_method"])
             assertEquals(ATPROTO_REDIRECT_URI, form["redirect_uri"])
-            assertEquals("atproto repo:fm.teal.feed.play?action=create&action=delete", form["scope"])
+            assertEquals("atproto repo:fm.teal.feed.play?action=create", form["scope"])
             assertEquals("alice.example", form["login_hint"])
             assertEquals("authorization_code", token.first().form["grant_type"])
             assertEquals("controlled-code", token.first().form["code"])
@@ -224,7 +254,7 @@ class AtprotoOAuthHttpTest {
                 fixture.tokenJson(sub = "did:web:other.example"),
                 fixture.tokenJson(type = "Bearer"),
                 fixture.tokenJson(scope = "atproto"),
-                fixture.tokenJson(scope = "atproto repo:fm.teal.feed.play?action=create&action=delete transition:generic"),
+                fixture.tokenJson(scope = "atproto repo:fm.teal.feed.play?action=create transition:generic"),
                 fixture.tokenJson().dropLast(1),
             )) {
                 fixture.tokenBody = response
@@ -313,6 +343,12 @@ class AtprotoOAuthHttpTest {
 
         fun resume(attempt: AtprotoOAuthAttempt) = oauth.resume(attempt)
 
+        suspend fun rotate(session: AtprotoOAuthSession) =
+            client.rotateOAuth(session, requireNotNull(session.refreshToken), client.discoverAtprotoOAuth(session.pds))
+
+        suspend fun write(session: AtprotoOAuthSession, collection: String) =
+            client.createPlay(session, collection, "3jzfcijpj2z2a", buildJsonObject {}).uri
+
         fun posts(path: String) = requests.filter { it.path == path && it.method == "POST" }
 
         fun state() = requireNotNull(posts("/par").last().form["state"])
@@ -331,7 +367,7 @@ class AtprotoOAuthHttpTest {
         private fun handle(exchange: HttpExchange) {
             val request = Request(exchange.requestURI.path, exchange.requestURI.rawQuery, exchange.requestMethod,
                 exchange.requestHeaders.getFirst("Content-Type"), exchange.requestHeaders.getFirst("DPoP"),
-                exchange.requestBody.readBytes().decodeToString())
+                exchange.requestBody.readBytes().decodeToString(), exchange.requestHeaders.getFirst("Authorization"))
             requests.add(request)
             when (request.path) {
                 "/xrpc/com.atproto.identity.resolveHandle" ->
@@ -374,6 +410,12 @@ class AtprotoOAuthHttpTest {
                         .replace("action=create&action=delete", "action=delete&action=create")
                     exchange.json(200, tokenBody ?: tokenJson(scope = scope), "token-success")
                 }
+                "/xrpc/com.atproto.repo.createRecord" -> if (posts(request.path).size == 1) {
+                    exchange.json(401, """{"error":"use_dpop_nonce"}""", "pds-challenge")
+                } else {
+                    val collection = if ("fm.teal.feed.play" in request.body) "fm.teal.feed.play" else "app.rocksky.scrobble"
+                    exchange.json(200, """{"uri":"at://${identity.did}/$collection/3jzfcijpj2z2a","cid":"fixture"}""", "pds-success")
+                }
                 else -> exchange.sendResponseHeaders(404, -1)
             }
         }
@@ -391,6 +433,7 @@ class AtprotoOAuthHttpTest {
         val contentType: String?,
         private val dpop: String?,
         val body: String,
+        val authorization: String?,
     ) {
         val form get() = parseQueryString(body.replace("+", "%20"))
         val proof get() = SignedJWT.parse(requireNotNull(dpop))

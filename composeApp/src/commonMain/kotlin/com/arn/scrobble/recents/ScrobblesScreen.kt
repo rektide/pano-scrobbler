@@ -138,7 +138,7 @@ fun ScrobblesScreen(
     var timeJumpMenuShown by rememberSaveable { mutableStateOf(false) }
     val pendingScrobblesHeader =
         stringResource(Res.string.pending_scrobbles) + ": " + pendingScrobblesCount
-    val canLove = accountType != AccountType.PLEROMA && !accountType.isReadOnly
+    val canLove = accountType != AccountType.PLEROMA && !accountType.isAtproto
 
     val scope = rememberCoroutineScope()
 
@@ -146,7 +146,7 @@ fun ScrobblesScreen(
         mutableStateOf(
             !PlatformStuff.isTv &&
                     selectedType != PanoTab.Scrobbles.ScrobblesSubTabType.LOVED &&
-                    accountType !in arrayOf(AccountType.FILE, AccountType.PLEROMA) && !accountType.isReadOnly
+                    accountType !in arrayOf(AccountType.FILE, AccountType.PLEROMA) && !accountType.isAtproto
         )
     }
 
@@ -375,7 +375,7 @@ fun ScrobblesScreen(
                 )
                     emptyText { stringResource(Res.string.no_scrobbles) }
 
-                if (accountType.isReadOnly) {
+                if (accountType.isAtproto) {
                     item("atproto_public_recents") {
                         Text(
                             stringResource(Res.string.atproto_public_recents),
@@ -383,7 +383,8 @@ fun ScrobblesScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
-                } else if (user.isSelf) {
+                }
+                if (user.isSelf) {
                     when (val scrobblerState = scrobblerState) {
                         ScrobblerState.Disabled, ScrobblerState.NLSDisabled -> {
                             item("notice") {
@@ -464,7 +465,7 @@ fun ScrobblesScreen(
                             onTrackClick(it as Track, null)
                         },
                         viewModel = viewModel,
-                        canLove = !accountType.isReadOnly,
+                        canLove = !accountType.isAtproto,
                     )
 
                     if (pendingScrobbles.isNotEmpty()) {

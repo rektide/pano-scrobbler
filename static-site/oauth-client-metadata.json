@@ -8,5 +8,5 @@
   "response_types": ["code"],
   "token_endpoint_auth_method": "none",
   "dpop_bound_access_tokens": true,
-  "scope": "atproto repo:fm.teal.feed.play?action=create&action=delete repo:app.rocksky.scrobble?action=create&action=delete repo:fm.teal.actor.status?action=create&action=update&action=delete repo:app.rocksky.actor.status?action=create&action=update&action=delete repo:app.rocksky.like?action=create&action=delete"
+  "scope": "atproto repo:fm.teal.feed.play?action=create repo:app.rocksky.scrobble?action=create repo:fm.teal.feed.play?action=create&action=delete repo:app.rocksky.scrobble?action=create&action=delete repo:fm.teal.actor.status?action=create&action=update&action=delete repo:app.rocksky.actor.status?action=create&action=update&action=delete repo:app.rocksky.like?action=create&action=delete"
 }
