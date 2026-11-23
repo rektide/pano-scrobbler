@@ -78,7 +78,8 @@ internal class AtprotoLoginViewModel : ViewModel() {
     fun finishBrowserSignIn(callback: String, fromBrowser: Boolean = false) = run(Res.string.atproto_callback_failed, queue = fromBrowser) {
         val attempt = attempts.load()
         if (attempt == null) {
-            mutableState.update { it.copy(error = Res.string.atproto_callback_expired, awaitingBrowser = false) }
+            // Browsers can send a duplicate native launch even after a successful return.
+            if (!fromBrowser) mutableState.update { it.copy(error = Res.string.atproto_callback_expired, awaitingBrowser = false) }
             return@run
         }
         try {
@@ -91,6 +92,12 @@ internal class AtprotoLoginViewModel : ViewModel() {
         } finally {
             checkPending()
         }
+    }
+
+    fun reopenBrowser() = run(Res.string.atproto_browser_failed) {
+        val attempt = attempts.load()
+        if (attempt != null) PlatformStuff.openInBrowser(attempt.authorizationUrl)
+        else mutableState.update { it.copy(error = Res.string.atproto_callback_expired) }
     }
 
     fun cancelBrowserSignIn() = run(Res.string.atproto_browser_failed) { attempts.clear() }

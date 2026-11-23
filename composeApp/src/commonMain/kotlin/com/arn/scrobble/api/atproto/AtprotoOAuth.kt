@@ -17,6 +17,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.net.URI
 import java.net.URLDecoder
 import java.security.MessageDigest
@@ -29,6 +30,14 @@ import kotlin.time.Instant
 
 const val ATPROTO_CLIENT_ID = "https://rektide.github.io/pano-scrobbler/oauth-client-metadata.json"
 const val ATPROTO_REDIRECT_URI = "io.github.rektide:/pano-scrobbler/oauth/callback"
+internal const val ATPROTO_CALLBACK_MAX_LENGTH = 16 * 1024
+
+internal fun String.isNativeAtprotoCallback(): Boolean {
+    if (length > ATPROTO_CALLBACK_MAX_LENGTH || !startsWith("$ATPROTO_REDIRECT_URI?") ||
+        any { it.isWhitespace() || it.isISOControl() }) return false
+    val uri = parseOAuthUri(this) ?: return false
+    return uri.rawQuery != null && uri.rawFragment == null
+}
 
 enum class AtprotoOAuthPermission(val scope: String) {
     TEAL_SCROBBLES("repo:fm.teal.feed.play?action=create"),
@@ -86,25 +95,34 @@ class AtprotoOAuthSignIn internal constructor(
 
     internal suspend fun complete(callbackUrl: String, consume: suspend () -> Boolean): AtprotoOAuthSession {
         val invalid = "Invalid AT Protocol OAuth callback"
-        val uri = callbackUrl.takeIf { it.length <= 16 * 1024 }?.let(::parseOAuthUri)
-        val query = uri?.rawQuery
-        if (query == null || uri.rawFragment != null || callbackUrl.substringBefore('?') != ATPROTO_REDIRECT_URI)
-            throw ApiException(-1, invalid)
+        val uri = callbackUrl.takeIf { it.length <= ATPROTO_CALLBACK_MAX_LENGTH }?.let(::parseOAuthUri)
+            ?: throw ApiException(-1, invalid)
+        val query = uri.rawQuery?.takeIf { uri.rawFragment == null } ?: throw ApiException(-1, invalid)
+        val isNative = callbackUrl.substringBefore('?') == ATPROTO_REDIRECT_URI
+        if (!isNative && (uri.scheme != "https" || uri.rawUserInfo != null || uri.host == null ||
+                uri.rawPath != "/oauth/authorize/redirect" ||
+                callbackUrl.toHttpUrlOrNull()?.oauthOrigin() != attempt.issuer)
+        ) throw ApiException(-1, invalid)
         val parameters = try {
-            query.split('&').groupBy(
-                { URLDecoder.decode(it.substringBefore('='), "UTF-8") },
-                { URLDecoder.decode(it.substringAfter('=', ""), "UTF-8") },
-            )
+            buildMap<String, String> {
+                for (entry in query.split('&')) {
+                    val key = URLDecoder.decode(entry.substringBefore('='), "UTF-8")
+                    val value = URLDecoder.decode(entry.substringAfter('=', ""), "UTF-8")
+                    if (key.isEmpty() || put(key, value) != null) throw ApiException(-1, invalid)
+                }
+            }
         } catch (_: IllegalArgumentException) {
             throw ApiException(-1, invalid)
         }
-        if (parameters["state"]?.singleOrNull() != attempt.state ||
-            parameters["iss"]?.singleOrNull() != attempt.issuer
+        // The Bluesky return page puts the native redirect target and OAuth response
+        // parameters side by side. Treat it only as data; never fetch or follow it.
+        if ((!isNative && (parameters["redirect_mode"] != "query" || parameters["redirect_uri"] != ATPROTO_REDIRECT_URI)) ||
+            parameters["state"] != attempt.state || parameters["iss"] != attempt.issuer
         ) throw ApiException(-1, invalid)
 
         val code = parameters["code"]
         val error = parameters["error"]
-        val value = (if (error == null) code else if (code == null) error else null)?.singleOrNull()
+        val value = if (error == null) code else if (code == null) error else null
         if (value.isNullOrBlank() || value.any { it.isISOControl() }) throw ApiException(-1, invalid)
         // Consume before doing I/O, even on denial, cancellation or a failed exchange.
         val exchange = pending.getAndSet(null)

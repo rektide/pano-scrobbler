@@ -10,6 +10,7 @@ import com.arn.scrobble.api.atproto.AtprotoOAuthPermission
 import com.arn.scrobble.api.atproto.AtprotoOAuthSession
 import com.arn.scrobble.api.atproto.createPlay
 import com.arn.scrobble.api.atproto.discoverAtprotoOAuth
+import com.arn.scrobble.api.atproto.isNativeAtprotoCallback
 import com.arn.scrobble.api.atproto.rotateOAuth
 import com.arn.scrobble.api.lastfm.ApiException
 import com.nimbusds.jose.JWSAlgorithm
@@ -227,6 +228,43 @@ class AtprotoOAuthHttpTest {
             assertTrue(fixture.posts("/token").isEmpty())
         }
     }
+
+    @Test
+    fun pastedProviderReturnIsBoundToPendingIssuerRedirectStateAndOneExchange() = runBlocking {
+        Fixture().use { fixture ->
+            val pending = fixture.start()
+            val callback = fixture.callback()
+            val wrapper = "${fixture.issuer}/oauth/authorize/redirect?" +
+                listOf("redirect_mode" to "query", "redirect_uri" to ATPROTO_REDIRECT_URI).formUrlEncode() +
+                "&" + callback.substringAfter('?')
+            assertTrue(callback.isNativeAtprotoCallback())
+            assertTrue(!wrapper.isNativeAtprotoCallback())
+            assertTrue(!"$callback\n".isNativeAtprotoCallback())
+            listOf(
+                wrapper.replace(fixture.issuer, fixture.pds), // outer origin (query issuer is encoded)
+                wrapper.replace("https://", "http://"),
+                wrapper.replace("https://", "https://userinfo@"),
+                wrapper.replace("/authorize/redirect", "/authorize/%72edirect"),
+                wrapper.replace("redirect_mode=query", "redirect_mode=fragment"),
+                wrapper.replace("redirect_uri=", "REDIRECT_URI="),
+                wrapper.replace(ATPROTO_REDIRECT_URI.formValue(), "$ATPROTO_REDIRECT_URI?x=y".formValue()),
+                wrapper.replace(fixture.state(), "not-the-pending-state"),
+                "$wrapper&redirect_mode=query",
+                "$wrapper&redirect_uri=${ATPROTO_REDIRECT_URI.formValue()}",
+                "$wrapper&st%61te=${fixture.state()}",
+                "$wrapper&code=duplicate",
+                "$wrapper&error=access_denied",
+                "$wrapper#fragment",
+            ).forEach { wrong -> assertFailsWith<ApiException> { pending.complete(wrong) } }
+            assertEquals(listOf("/par"), fixture.requests.filter { it.method == "POST" }.map { it.path })
+            assertEquals(fixture.identity.did, pending.complete(wrapper).did)
+            assertFailsWith<ApiException> { pending.complete(wrapper) }
+            assertEquals(1, fixture.posts("/token").size)
+            assertTrue(fixture.requests.none { it.path == "/oauth/authorize/redirect" })
+        }
+    }
+
+    private fun String.formValue() = listOf("v" to this).formUrlEncode().removePrefix("v=")
 
     @Test
     fun refusesWrongResourceIssuerAndEndpointBeforePosting() = runBlocking {

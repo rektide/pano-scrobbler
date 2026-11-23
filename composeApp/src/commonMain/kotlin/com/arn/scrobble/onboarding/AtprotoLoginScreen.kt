@@ -61,6 +61,7 @@ internal fun AtprotoLoginScreen(
     // Passwords must never go into saved instance state (including Navigation's saved state).
     val password = remember { TextFieldState() }
     val callback = remember { TextFieldState() }
+    var showCallbackFallback by remember(state.awaitingBrowser) { mutableStateOf(false) }
     var teal by rememberSaveable(connection) { mutableStateOf(connection?.destinations?.contains(AccountType.TEAL) ?: true) }
     var rocksky by rememberSaveable(connection) { mutableStateOf(connection?.destinations?.contains(AccountType.ROCKSKY) ?: true) }
     val destinations = buildSet {
@@ -88,6 +89,10 @@ internal fun AtprotoLoginScreen(
         for (url in AtprotoOAuthCallback.inbox) {
             viewModel.finishBrowserSignIn(url, fromBrowser = true)
         }
+    }
+
+    LaunchedEffect(state.awaitingBrowser) {
+        if (!state.awaitingBrowser) callback.clearText()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = modifier.testTagsAsResId()) {
@@ -121,6 +126,16 @@ internal fun AtprotoLoginScreen(
         if (state.awaitingBrowser) {
             Text(stringResource(Res.string.atproto_waiting_for_browser))
             if (PlatformStuff.isDesktop) {
+                TextButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = viewModel::reopenBrowser) {
+                    Text(stringResource(Res.string.atproto_reopen_browser))
+                }
+            }
+            if (PlatformStuff.isDesktop && !showCallbackFallback) {
+                TextButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = { showCallbackFallback = true }) {
+                    Text(stringResource(Res.string.atproto_show_callback_fallback))
+                }
+            }
+            if (PlatformStuff.isDesktop && showCallbackFallback) {
                 Text(stringResource(Res.string.atproto_paste_callback_info))
                 PanoOutlinedSecureTextField(
                     callback,
