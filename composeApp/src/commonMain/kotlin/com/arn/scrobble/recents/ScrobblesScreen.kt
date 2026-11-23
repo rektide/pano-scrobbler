@@ -106,8 +106,10 @@ fun ScrobblesScreen(
     viewModel: ScrobblesVM = viewModel(key = user.key<ScrobblesVM>()) { ScrobblesVM(user, null) },
 ) {
     val listState = rememberLazyListState()
-    var selectedType by rememberSaveable { mutableStateOf(PanoTab.Scrobbles.ScrobblesSubTabType.SCROBBLES) }
-    var timeJumpMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    val accountType by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccountType }
+    val recentsOnlySource = accountType.takeIf { it.isAtproto }
+    var selectedType by rememberSaveable(recentsOnlySource) { mutableStateOf(PanoTab.Scrobbles.ScrobblesSubTabType.SCROBBLES) }
+    var timeJumpMillis by rememberSaveable(recentsOnlySource) { mutableStateOf<Long?>(null) }
     val tracks = viewModel.tracks.collectAsLazyPagingItems()
     val firstPageLoadedTime by viewModel.firstPageLoadedTime.collectAsStateWithLifecycle()
     val pendingScrobblesWithCount by
@@ -127,7 +129,6 @@ fun ScrobblesScreen(
         PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.showScrobbleSources }
     else
         remember { mutableStateOf(false) }
-    val accountType by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccountType }
     val otherPlatformsLearnt by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.desktopAppLearnt }
     var pendingScrobblesExpanded by rememberSaveable { mutableStateOf(false) }
     var scrollToTopOnLoad by rememberSaveable { mutableStateOf(true) }
@@ -445,7 +446,7 @@ fun ScrobblesScreen(
                     }
                 }
 
-                if (selectedType == PanoTab.Scrobbles.ScrobblesSubTabType.SCROBBLES && user.isSelf && !accountType.isReadOnly) {
+                if (selectedType == PanoTab.Scrobbles.ScrobblesSubTabType.SCROBBLES && user.isSelf) {
                     pendingScrobblesListItems(
                         headerText = pendingScrobblesHeader,
                         headerIcon = Icons.HourglassEmpty,
@@ -463,6 +464,7 @@ fun ScrobblesScreen(
                             onTrackClick(it as Track, null)
                         },
                         viewModel = viewModel,
+                        canLove = !accountType.isReadOnly,
                     )
 
                     if (pendingScrobbles.isNotEmpty()) {

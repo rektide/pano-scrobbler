@@ -128,14 +128,15 @@ internal class AtprotoScrobblable(
             }
             if (response.records.size > remaining)
                 throw ApiException(-1, "PDS returned too many AT Protocol records")
-            for (record in response.records) {
+            for (entry in response.records) {
+                val record = entry as? JsonObject ?: continue
                 val uri = record["uri"].text() ?: continue
                 if (!uri.startsWith(recordPrefix) || !recordKey.matches(uri.removePrefix(recordPrefix)) ||
                     uri in history.seenRecords || !records.add(uri)) continue
                 val track = (record["value"] as? JsonObject)?.toTrack(userAccount.type) ?: continue
                 val date = track.date ?: continue
                 if ((query.from < 0 || date >= query.from) && (query.to < 0 || date <= query.to))
-                    tracks += track
+                    tracks += track.copy(atprotoUri = uri)
             }
             cursor = response.cursor?.takeIf { it.isNotBlank() }
             val next = cursor
@@ -175,7 +176,7 @@ internal class AtprotoScrobblable(
         Result.failure(UnsupportedOperationException("Only Recents is available for this AT Protocol source"))
 
     @Serializable
-    private data class RecordPage(val records: List<JsonObject>, val cursor: String? = null)
+    private data class RecordPage(val records: List<JsonElement>, val cursor: String? = null)
 
     private companion object {
         val recordKey = Regex("[a-zA-Z0-9._~:-]{1,512}")
