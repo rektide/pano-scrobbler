@@ -38,6 +38,25 @@ import kotlin.test.assertTrue
 
 class AtprotoMainPrefsTest {
     @Test
+    fun addRockskyToTealWithoutSigningInAgain() = withPrefsFile { file ->
+        file.open { prefs ->
+            val sessions = AtprotoSessions(prefs)
+            sessions.connect(appSession(), user, setOf(AccountType.TEAL))
+            sessions.setDestination(DID, AccountType.ROCKSKY, true)
+            sessions.setDestination(DID, AccountType.TEAL, false)
+            sessions.setDestination(DID, AccountType.ROCKSKY, false)
+        }
+        file.open { prefs ->
+            val saved = prefs.data.first()
+            assertEquals(destinations, saved.scrobbleAccounts.map { it.type }.toSet())
+            assertEquals("synthetic-refresh", saved.atprotoSession?.refreshJwt)
+            assertTrue(saved.atprotoConnection!!.destinations.isEmpty())
+            AtprotoSessions(prefs).setDestination(DID, AccountType.ROCKSKY, true)
+            assertEquals(setOf(AccountType.ROCKSKY), prefs.data.first().atprotoConnection!!.destinations)
+        }
+    }
+
+    @Test
     fun appPasswordLoginReopensForBothDestinationsAndRotatesOnlyTheSession() = withPrefsFile { file ->
         file.writeText("""{"scrobblerEnabled":false}""")
         file.open { prefs ->

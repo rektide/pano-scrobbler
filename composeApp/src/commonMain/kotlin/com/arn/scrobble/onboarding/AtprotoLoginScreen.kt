@@ -87,8 +87,17 @@ fun AtprotoLoginScreen(
         if (connected != null) {
             val status = if (connected.needsReconnect) Res.string.atproto_reconnect_needed else Res.string.atproto_connected
             Text(stringResource(status, connected.handle), style = MaterialTheme.typography.titleMedium)
-            val labels = connected.destinations.map { accountTypeLabel(it) }
-            Text(stringResource(Res.string.atproto_destinations) + ": " + labels.joinToString(", "))
+            if (!connected.needsReconnect && !replacing) {
+                Column {
+                    Text(stringResource(Res.string.atproto_destinations), style = MaterialTheme.typography.titleMedium)
+                    for (type in listOf(AccountType.TEAL, AccountType.ROCKSKY)) {
+                        val checked = type in connected.destinations
+                        AtprotoDestination(type, checked, !state.busy) {
+                            viewModel.setDestination(connected.did, type, !checked)
+                        }
+                    }
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!replacing && !connected.needsReconnect) {
                     FilledTonalButton(shapes = ButtonDefaults.shapes(), enabled = !state.busy, onClick = { replacing = true }) {

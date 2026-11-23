@@ -47,6 +47,21 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
         return p.atprotoSession?.takeIf { it.did == account.authKey && it.pds == account.apiRoot }
     }
 
+    suspend fun setDestination(did: String, type: AccountType, enabled: Boolean) {
+        require(type.isAtproto)
+        prefs.updateData { p ->
+            val owner = p.scrobbleAccounts.first { it.type.isAtproto && it.authKey == did }
+            check(p.atprotoSession?.did == did)
+            val existing = p.scrobbleAccounts.firstOrNull { it.type == type }
+            val accounts = if (existing != null) p.scrobbleAccounts.map {
+                if (it.type == type) it.copy(canScrobble = enabled) else it
+            } else if (enabled) p.scrobbleAccounts.withScrobbleAccount(
+                UserAccountSerializable(type, owner.user, did, owner.apiRoot)
+            ) else return@updateData p
+            p.copy(scrobbleAccounts = accounts)
+        }
+    }
+
     /** Replaces credentials for the connected account without changing either destination. */
     suspend fun replaceSession(session: AtprotoAppPasswordSession) {
         prefs.updateData { p ->

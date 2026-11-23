@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import org.jetbrains.compose.resources.StringResource
 import pano_scrobbler.composeapp.generated.resources.Res
 import pano_scrobbler.composeapp.generated.resources.atproto_disconnect_failed
+import pano_scrobbler.composeapp.generated.resources.atproto_destination_failed
 import pano_scrobbler.composeapp.generated.resources.atproto_login_failed
 
 class AtprotoLoginViewModel : ViewModel() {
@@ -42,6 +43,11 @@ class AtprotoLoginViewModel : ViewModel() {
 
     fun disconnect() = run(Res.string.atproto_disconnect_failed) {
         sessions.disconnect()
+    }
+
+    fun setDestination(did: String, type: AccountType, enabled: Boolean) = run(Res.string.atproto_destination_failed) {
+        sessions.setDestination(did, type, enabled)
+        if (enabled) PendingScrobblesWork.schedule(false)
     }
 
     fun acknowledgeSignIn() = mutableState.update { it.copy(signedIn = false) }

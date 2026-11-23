@@ -267,7 +267,7 @@ data class MainPrefs(
                 it.type.isAtproto && it.authKey == owner.authKey && it.apiRoot == owner.apiRoot
             }
             destinations.firstOrNull()?.let {
-                AtprotoConnection(owner.authKey, it.user.name, destinations.mapTo(linkedSetOf()) { it.type },
+                AtprotoConnection(owner.authKey, it.user.name, destinations.filter { it.canScrobble }.mapTo(linkedSetOf()) { it.type },
                     needsReconnect = atprotoSession?.let { it.did == owner.authKey && it.pds == owner.apiRoot } != true)
             }
         }

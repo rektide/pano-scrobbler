@@ -14,6 +14,7 @@
     <string name="atproto_app_password" translatable="false">App password</string>
     <string name="atproto_app_password_info" translatable="false">Use an app password created in your AT Protocol account settings, not your main password.</string>
     <string name="atproto_destinations" translatable="false">Destinations</string>
+    <string name="atproto_destination_failed" translatable="false">Could not save destination settings.</string>
     <string name="atproto_connected" translatable="false">Connected as %1$s</string>
     <string name="atproto_sign_in_again" translatable="false">Sign in again</string>
     <string name="atproto_disconnect" translatable="false">Disconnect</string>
