@@ -1,6 +1,7 @@
 package com.arn.scrobble.api
 
 import co.touchlab.kermit.Logger
+import com.arn.scrobble.api.atproto.AtprotoSessions
 import com.arn.scrobble.api.cache.CacheStrategy
 import com.arn.scrobble.api.file.FileScrobblable
 import com.arn.scrobble.api.lastfm.Album
@@ -164,16 +165,29 @@ enum class AccountType(val id: Int) {
 
     //    MALOJA(5),
     PLEROMA(6),
-    FILE(7);
+    FILE(7),
+    TEAL(10),
+    ROCKSKY(11);
 
     val isCustom get() = this != LASTFM && this != LISTENBRAINZ && this != LIBREFM && this != FILE
+    val isAtproto get() = this == TEAL || this == ROCKSKY
+}
+
+internal fun List<UserAccountSerializable>.withScrobbleAccount(account: UserAccountSerializable): List<UserAccountSerializable> {
+    val filtered = filterNot { it.type == account.type }
+    if (filtered.any { it.apiRoot == account.apiRoot && !(it.type.isAtproto && account.type.isAtproto) })
+        throw ApiException(-1, "Account already exists")
+    return filtered + account
 }
 
 object Scrobblables {
     private val scrobblablesCache = hashMapOf<UserAccountSerializable, Scrobblable>()
 
     private val accounts = PlatformStuff.mainPrefs.data
-        .stateInWithCache(Stuff.appScope) { it.scrobbleAccounts.distinctBy { it.type }.toSet() }
+        .stateInWithCache(Stuff.appScope) {
+            // The AT destination entries can be saved before their Scrobblables are implemented.
+            it.scrobbleAccounts.filterNot { it.type.isAtproto }.distinctBy { it.type }.toSet()
+        }
 
     private val currentAccountType = PlatformStuff.mainPrefs.data
         .stateInWithCache(Stuff.appScope) { it.currentAccountType }
@@ -202,6 +216,7 @@ object Scrobblables {
         get() = all.firstOrNull { it.userAccount.type == currentAccountType.value }
 
     suspend fun deleteAllByType(type: AccountType) {
+        if (type.isAtproto) return AtprotoSessions().disable(type)
         PlatformStuff.mainPrefs.updateData {
             val remainingAccounts = it.scrobbleAccounts.filterNot { it.type == type }
             var currentAccountType = it.currentAccountType
@@ -224,16 +239,10 @@ object Scrobblables {
     }
 
     suspend fun add(userAccount: UserAccountSerializable) {
+        require(!userAccount.type.isAtproto) { "Save AT Protocol destinations with their shared login" }
         PlatformStuff.mainPrefs.updateData {
-            // if same type already exists, remove it first
-            val filteredAccounts = it.scrobbleAccounts.filterNot { it.type == userAccount.type }
-
-            if (filteredAccounts.any { it.apiRoot == userAccount.apiRoot }) {
-                throw ApiException(-1, "Account already exists")
-            }
-
             it.copy(
-                scrobbleAccounts = filteredAccounts + userAccount,
+                scrobbleAccounts = it.scrobbleAccounts.withScrobbleAccount(userAccount),
                 currentAccountType = userAccount.type
             )
         }
@@ -255,6 +264,7 @@ object Scrobblables {
             AccountType.PLEROMA -> Pleroma(userAccount)
 
             AccountType.FILE -> FileScrobblable(userAccount)
+            AccountType.TEAL, AccountType.ROCKSKY -> error("AT Protocol scrobblers are not registered")
         }
     }
 }

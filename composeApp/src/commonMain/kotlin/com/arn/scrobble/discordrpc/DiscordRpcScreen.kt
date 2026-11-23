@@ -84,7 +84,7 @@ fun DiscordRpcScreen(
         )
     }
     val accountTypes by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue {
-        it.scrobbleAccounts.map { it.type }.toSet()
+        it.scrobbleAccounts.map { it.type }.filterNot { it.isAtproto }.toSet()
     }
 
     val tertiaryColor = MaterialTheme.colorScheme.tertiary

@@ -7,15 +7,24 @@ import com.nimbusds.jose.jwk.ECKey
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator
 import com.nimbusds.jose.util.Base64URL
 import io.ktor.client.HttpClient
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import okhttp3.HttpUrl
 import java.net.URI
 import java.net.URLDecoder
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.text.ParseException
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -30,16 +39,19 @@ enum class AtprotoOAuthPermission(val scope: String) {
     ROCKSKY_LIKES("repo:app.rocksky.like?action=create&action=delete"),
 }
 
+@Serializable
+@SerialName("oauth")
 class AtprotoOAuthSession(
-    val did: String,
-    val pds: String,
+    override val did: String,
+    override val pds: String,
     val issuer: String,
+    val clientId: String,
     val scopes: Set<String>,
-    val expiresInSeconds: Long,
+    val expiresAt: Instant,
     val accessToken: String,
     val refreshToken: String?,
     val dpop: AtprotoOAuthDpop,
-)
+) : AtprotoSession
 
 /** Holds the browser URL and the pending in-memory sign-in. */
 class AtprotoOAuthSignIn(
@@ -158,6 +170,7 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
             "code" to code,
             "code_verifier" to verifier,
         ))
+        val receivedAt = Clock.System.now()
         if (token.subject != identity.did || !token.tokenType.equals("DPoP", ignoreCase = true) ||
             token.expiresIn <= 0 || !token.accessToken.isOAuthCredential() ||
             token.refreshToken?.isOAuthCredential() == false
@@ -166,7 +179,8 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
         val granted = token.scope.split(' ').map(::canonicalScope).toSet()
         if (granted != scopes.map(::canonicalScope).toSet())
             throw ApiException(-1, "AT Protocol did not grant the selected permissions")
-        return AtprotoOAuthSession(identity.did, identity.pds, server.issuer, granted, token.expiresIn,
+        return AtprotoOAuthSession(identity.did, identity.pds, server.issuer, ATPROTO_CLIENT_ID,
+            granted, receivedAt + token.expiresIn.seconds,
             token.accessToken, token.refreshToken, dpop)
     }
 }
@@ -185,6 +199,7 @@ private fun canonicalScope(scope: String): String = scope.substringBefore('?').l
  * DPoP (Demonstrating Proof of Possession) signs requests to prove Pano holds the private key bound to the session's tokens.
  * The same key is used throughout the session, but each server origin gets its own nonce.
  */
+@Serializable(with = AtprotoOAuthDpop.Serializer::class)
 class AtprotoOAuthDpop(private val key: ECKey) {
     private val nonces = mutableMapOf<String, String>()
 
@@ -193,6 +208,29 @@ class AtprotoOAuthDpop(private val key: ECKey) {
 
     fun rememberNonce(url: HttpUrl, nonce: String) {
         nonces[url.oauthOrigin()] = nonce
+    }
+
+    // Only the token-bound key is durable; nonces are per-origin request state.
+    private object Serializer : KSerializer<AtprotoOAuthDpop> {
+        override val descriptor = PrimitiveSerialDescriptor("AtprotoOAuthDpop", PrimitiveKind.STRING)
+
+        override fun serialize(encoder: Encoder, value: AtprotoOAuthDpop) {
+            encoder.encodeString(value.key.requirePrivateP256().toJSONString())
+        }
+
+        override fun deserialize(decoder: Decoder): AtprotoOAuthDpop {
+            val key = try {
+                ECKey.parse(decoder.decodeString())
+            } catch (_: ParseException) {
+                throw SerializationException("Invalid AT Protocol signing key")
+            }
+            return AtprotoOAuthDpop(key.requirePrivateP256())
+        }
+
+        private fun ECKey.requirePrivateP256() = apply {
+            if (curve != Curve.P_256 || d == null)
+                throw SerializationException("Invalid AT Protocol signing key")
+        }
     }
 }
 

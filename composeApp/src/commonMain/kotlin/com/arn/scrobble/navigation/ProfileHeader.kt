@@ -429,7 +429,7 @@ private fun ProfileOptions(
     val otherAccounts by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { prefs ->
         prefs.scrobbleAccounts
             .distinctBy { it.type }
-            .filterNot { it.type == prefs.currentAccountType }
+            .filterNot { it.type.isAtproto || it.type == prefs.currentAccountType }
     }
     val scope = rememberCoroutineScope()
 

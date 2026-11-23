@@ -97,7 +97,7 @@ fun ButtonStepperForLogin(
 ) {
     val accountTypesToStrings =
         AccountType.entries.filterNot {
-            PlatformStuff.isTv && it == AccountType.FILE ||
+            it.isAtproto || PlatformStuff.isTv && it == AccountType.FILE ||
                     it == AccountType.CUSTOM_LISTENBRAINZ_2 ||
                     it == AccountType.CUSTOM_LISTENBRAINZ_3
         }.associateWith {

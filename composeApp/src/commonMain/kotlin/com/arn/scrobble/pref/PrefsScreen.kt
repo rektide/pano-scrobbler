@@ -1000,7 +1000,7 @@ fun PrefsScreen(
 
         AccountType.entries
             .filterNot {
-                PlatformStuff.isTv && it == AccountType.FILE
+                it.isAtproto || PlatformStuff.isTv && it == AccountType.FILE
             }
             .forEach { accountType ->
                 val (strRes, formatRes) = accountTypeStringRes(accountType)
