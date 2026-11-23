@@ -43,7 +43,9 @@ import com.arn.scrobble.pref.AppListScreen
 import com.arn.scrobble.pref.AutomationInfoScreen
 import com.arn.scrobble.pref.DeleteAccountScreen
 import com.arn.scrobble.api.atproto.AtAccountScreen
+import com.arn.scrobble.api.atproto.AtBrowseScreen
 import pano_scrobbler.composeapp.generated.resources.atproto_account
+import pano_scrobbler.composeapp.generated.resources.atproto_browse
 import com.arn.scrobble.pref.ExportScreen
 import com.arn.scrobble.pref.ImportScreen
 import com.arn.scrobble.pref.OssCreditsScreen
@@ -250,7 +252,12 @@ object PanoNavGraph {
 
         entry<PanoRoute.AtAccount> { route ->
             onSetTitleRes(route, Res.string.atproto_account)
-            AtAccountScreen(Modifier.navScrollableColumn())
+            AtAccountScreen(Modifier.navScrollableColumn()) { navigate(PanoRoute.AtBrowse(it)) }
+        }
+
+        entry<PanoRoute.AtBrowse> { route ->
+            onSetTitleRes(route, Res.string.atproto_browse)
+            AtBrowseScreen(route.did, Modifier.navScrollableColumn())
         }
 
         entry<PanoRoute.DeleteAccount> { route ->

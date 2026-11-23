@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="atproto_account">AT Protocol · Teal and Rocksky</string>
+    <string name="atproto_account" translatable="false">AT Protocol · Teal and Rocksky</string>
+    <string name="atproto_browse" translatable="false">Browse Teal and Rocksky</string>
     <!-- DO NOT TRANSLATE -->
     <string name="spotify" translatable="false">Spotify</string>
     <string name="lastfm" translatable="false">Last.fm</string>

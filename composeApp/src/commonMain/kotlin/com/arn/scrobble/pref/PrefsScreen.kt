@@ -1,6 +1,7 @@
 package com.arn.scrobble.pref
 
 import pano_scrobbler.composeapp.generated.resources.atproto_account
+import pano_scrobbler.composeapp.generated.resources.atproto_browse
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1002,6 +1003,9 @@ fun PrefsScreen(
 
         filteredItem("atproto", Res.string.atproto_account) { title ->
             TextPref(text = title, onClick = { onNavigate(PanoRoute.AtAccount) })
+        }
+        filteredItem("atproto_browse", Res.string.atproto_browse) { title ->
+            TextPref(text = title, onClick = { onNavigate(PanoRoute.AtBrowse()) })
         }
 
         AccountType.entries

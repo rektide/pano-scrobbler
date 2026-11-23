@@ -77,6 +77,9 @@ sealed interface PanoRoute : NavKey {
     data object AtAccount : PanoRoute
 
     @Serializable
+    data class AtBrowse(val did: String? = null) : PanoRoute
+
+    @Serializable
     data object DeleteAccount : PanoRoute
 
     @Serializable

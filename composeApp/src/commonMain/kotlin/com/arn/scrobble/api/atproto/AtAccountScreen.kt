@@ -20,7 +20,7 @@ internal fun hasAtAccount(): Boolean {
 }
 
 @Composable
-internal fun AtAccountScreen(modifier: Modifier) {
+internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
     var account by remember { mutableStateOf<AtAccount?>(null) }
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -60,6 +60,7 @@ internal fun AtAccountScreen(modifier: Modifier) {
     val identity = account?.identity
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("One account can send to Teal, Rocksky, or both.")
+        OutlinedButton(onClick = { browse(identity?.did) }) { Text("Browse public listening data") }
         if (identity != null) {
             Text(identity.handle ?: identity.did, style = MaterialTheme.typography.titleMedium)
             if (identity.handle != null) Text(identity.did)
