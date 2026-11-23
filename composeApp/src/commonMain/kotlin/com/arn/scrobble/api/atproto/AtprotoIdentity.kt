@@ -12,7 +12,7 @@ import kotlinx.io.readString
 import kotlinx.serialization.Serializable
 import java.net.URI
 
-internal data class AtprotoIdentity(val did: String, val pds: String)
+data class AtprotoIdentity(val did: String, val pds: String)
 
 private val label = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 private val handlePattern = Regex("(?:$label\\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?")
@@ -30,7 +30,7 @@ private data class DidDocument(
     data class Service(val id: String, val type: String, val serviceEndpoint: String)
 }
 
-internal suspend fun HttpClient.getIdentityDocument(url: String): String =
+suspend fun HttpClient.getIdentityDocument(url: String): String =
     prepareGet(url).execute { response ->
         if (!response.status.isSuccess())
             throw ApiException(response.status.value, response.status.description)
@@ -41,7 +41,7 @@ internal suspend fun HttpClient.getIdentityDocument(url: String): String =
     }
 
 /** Returns the account DID and HTTPS PDS after checking that the DID document claims the supplied handle. */
-internal suspend fun resolveAtprotoHandle(
+suspend fun resolveAtprotoHandle(
     input: String,
     getDocument: suspend (String) -> String = { url ->
         Requesters.baseKtorClient.getIdentityDocument(url)

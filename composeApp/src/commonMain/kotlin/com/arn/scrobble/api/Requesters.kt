@@ -6,6 +6,7 @@ import com.arn.scrobble.api.cache.HttpMemoryCache
 import com.arn.scrobble.api.cache.HybridCacheStorage
 import com.arn.scrobble.api.deezer.DeezerRequester
 import com.arn.scrobble.api.itunes.ItunesRequester
+import com.arn.scrobble.api.atproto.atprotoPublicDns
 import com.arn.scrobble.api.lastfm.ApiException
 import com.arn.scrobble.api.lastfm.DefaultExpirationPolicy
 import com.arn.scrobble.api.lastfm.LastFm
@@ -45,6 +46,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Credentials
+import okhttp3.Dns
 import java.io.File
 import java.net.Authenticator
 import java.net.InetSocketAddress
@@ -92,7 +94,7 @@ object Requesters {
 
     val lastfmUnauthedRequester by lazy { LastFmUnauthedRequester() }
 
-    private fun createBaseKtorClient(trustAll: Boolean) = invalidatableLazy {
+    private fun createBaseKtorClient(trustAll: Boolean, requestDns: Dns? = null) = invalidatableLazy {
         HttpClient(OkHttp) {
             val proxyVal = proxy.value
 
@@ -128,6 +130,7 @@ object Requesters {
             engine {
                 dispatcher = Dispatchers.IO
                 proxy = proxyJvm
+                if (requestDns != null) dns = requestDns
 
                 config {
                     if (proxyVal.type == MainPrefs.ProxyPrefs.Type.HTTP && proxyVal.hasAuth) {
@@ -177,6 +180,9 @@ object Requesters {
 
     private val _baseKtorClient = createBaseKtorClient(false)
     val baseKtorClient by _baseKtorClient
+
+    private val _atprotoOAuthKtorClient = createBaseKtorClient(false, atprotoPublicDns)
+    val atprotoOAuthKtorClient by _atprotoOAuthKtorClient
 
     private fun createGenericKtorClient(trustAll: Boolean) = invalidatableLazy {
         val baseClient = if (trustAll) {
@@ -231,6 +237,7 @@ object Requesters {
 
     private fun invalidateAll() {
         _baseKtorClient.invalidate()
+        _atprotoOAuthKtorClient.invalidate()
         _genericKtorClient.invalidate()
         _genericKtorTrustAllClient.invalidate()
         spotifyRequester.invalidateClient()
