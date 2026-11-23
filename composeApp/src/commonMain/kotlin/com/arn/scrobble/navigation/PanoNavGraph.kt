@@ -31,6 +31,8 @@ import com.arn.scrobble.info.SimilarTracksScreen
 import com.arn.scrobble.main.HomePagerScreen
 import com.arn.scrobble.main.MainViewModel
 import com.arn.scrobble.onboarding.FileLoginScreen
+import com.arn.scrobble.onboarding.AtprotoLoginScreen
+import pano_scrobbler.composeapp.generated.resources.atproto
 import com.arn.scrobble.onboarding.GnufmLoginScreen
 import com.arn.scrobble.onboarding.ListenBrainzLoginScreen
 import com.arn.scrobble.onboarding.OnboardingScreen
@@ -397,6 +399,15 @@ object PanoNavGraph {
             ExportScreen(
                 onBack = goBack,
                 modifier = Modifier.navScrollableColumn()
+            )
+        }
+
+        entry<PanoRoute.LoginAtproto> { route ->
+            onSetTitleRes(route, Res.string.atproto)
+            AtprotoLoginScreen(
+                onDone = goBack,
+                onOpenSettings = { navigate(PanoRoute.Prefs) },
+                modifier = Modifier.navScrollableColumn(),
             )
         }
 

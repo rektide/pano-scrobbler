@@ -253,6 +253,20 @@ data class MainPrefs(
     val currentAccount
         get() = scrobbleAccounts.firstOrNull { it.type == currentAccountType }
 
+    // The saved AT account is not a live Scrobblable until its writers/readers are registered.
+    val currentScrobblableAccount
+        get() = currentAccount?.takeUnless { it.type.isAtproto }
+
+    internal val atprotoConnection
+        get() = atprotoSession?.let { session ->
+            val destinations = scrobbleAccounts.filter {
+                it.type.isAtproto && it.authKey == session.did && it.apiRoot == session.pds
+            }
+            destinations.firstOrNull()?.let {
+                AtprotoConnection(session.did, it.user.name, destinations.mapTo(linkedSetOf()) { it.type })
+            }
+        }
+
     val logToFileOnAndroid
         get() = (System.currentTimeMillis() - logToFileOnAndroidSince) <= 15.days.inWholeMilliseconds
 
@@ -386,3 +400,5 @@ data class MainPrefs(
         )
     }
 }
+
+internal data class AtprotoConnection(val did: String, val handle: String, val destinations: Set<AccountType>)

@@ -9,6 +9,17 @@
     <string name="pleroma" translatable="false">Pleroma</string>
     <string name="teal" translatable="false">Teal</string>
     <string name="rocksky" translatable="false">Rocksky</string>
+    <string name="atproto" translatable="false">AT Protocol</string>
+    <string name="atproto_handle" translatable="false">Handle</string>
+    <string name="atproto_app_password" translatable="false">App password</string>
+    <string name="atproto_app_password_info" translatable="false">Use an app password created in your AT Protocol account settings, not your main password.</string>
+    <string name="atproto_destinations" translatable="false">Destinations</string>
+    <string name="atproto_connected" translatable="false">Connected as %1$s</string>
+    <string name="atproto_sign_in_again" translatable="false">Sign in again</string>
+    <string name="atproto_disconnect" translatable="false">Disconnect</string>
+    <string name="atproto_login_failed" translatable="false">Could not sign in. Check your handle and app password and try again.</string>
+    <string name="atproto_disconnect_failed" translatable="false">Could not disconnect. Try again.</string>
+    <string name="atproto_sign_in_only" translatable="false">Teal and Rocksky scrobbling is not available yet.</string>
     <string name="loading" translatable="false">…</string>
     <string name="export_file_name" translatable="false" formatted="true">pano_scrobbler_export_%1$s</string>
     <string name="edit_case_sensitive_aa" translatable="false">Aa</string>

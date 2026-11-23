@@ -42,6 +42,7 @@ import com.arn.scrobble.utils.PlatformStuff
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import pano_scrobbler.composeapp.generated.resources.Res
+import pano_scrobbler.composeapp.generated.resources.atproto
 import pano_scrobbler.composeapp.generated.resources.fix_it_action
 import pano_scrobbler.composeapp.generated.resources.pref_privacy_policy
 import pano_scrobbler.composeapp.generated.resources.proxy
@@ -141,6 +142,18 @@ fun ButtonStepperForLogin(
                     },
                 )
             }
+            item(
+                onClick = {
+                    navigate(PanoRoute.LoginAtproto)
+                    dropDownShown = false
+                },
+                text = {
+                    Text(
+                        stringResource(Res.string.atproto),
+                        modifier = Modifier.testTag("login_type_atproto").testTagsAsResId(),
+                    )
+                },
+            )
         }
     }
 }

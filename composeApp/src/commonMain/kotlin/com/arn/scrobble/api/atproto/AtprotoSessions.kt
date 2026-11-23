@@ -80,7 +80,9 @@ class AtprotoSessions(private val prefs: DataStore<MainPrefs> = PlatformStuff.ma
     }
 
     private fun MainPrefs.selectionIn(accounts: List<UserAccountSerializable>) =
-        currentAccountType.takeIf { selected -> accounts.any { it.type == selected } }
+        currentAccountType.takeIf { selected -> !selected.isAtproto && accounts.any { it.type == selected } }
+            ?: accounts.firstOrNull { !it.type.isAtproto }?.type
+            ?: currentAccountType.takeIf { selected -> accounts.any { it.type == selected } }
             ?: accounts.firstOrNull()?.type ?: AccountType.LASTFM
 
     private fun AtprotoSession.isForThisClient() = this !is AtprotoOAuthSession || clientId == ATPROTO_CLIENT_ID

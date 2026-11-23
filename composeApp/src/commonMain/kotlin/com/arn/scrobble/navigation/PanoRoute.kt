@@ -110,6 +110,9 @@ sealed interface PanoRoute : NavKey {
     data object LoginGnufm : PanoRoute
 
     @Serializable
+    data object LoginAtproto : PanoRoute
+
+    @Serializable
     data class AppList(
         val saveType: AppListSaveType,
         val packagesOverride: List<String>? = null,

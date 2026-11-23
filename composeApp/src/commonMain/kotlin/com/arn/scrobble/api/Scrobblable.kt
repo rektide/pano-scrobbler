@@ -222,7 +222,8 @@ object Scrobblables {
             var currentAccountType = it.currentAccountType
             if (remainingAccounts.find { it.type == currentAccountType } == null) {
                 // if current account type is not in the list, set it to the first one
-                currentAccountType = remainingAccounts.firstOrNull()?.type ?: AccountType.LASTFM
+                currentAccountType = remainingAccounts.firstOrNull { !it.type.isAtproto }?.type
+                    ?: remainingAccounts.firstOrNull()?.type ?: AccountType.LASTFM
             }
             val remainingDrawerData = it.drawerData.filterKeys { it != type }
 

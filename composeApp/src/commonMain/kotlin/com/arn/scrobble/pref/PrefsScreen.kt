@@ -149,6 +149,8 @@ import pano_scrobbler.composeapp.generated.resources.proxy
 import pano_scrobbler.composeapp.generated.resources.rate_limit_warn
 import pano_scrobbler.composeapp.generated.resources.regex_rules
 import pano_scrobbler.composeapp.generated.resources.scrobble_services
+import pano_scrobbler.composeapp.generated.resources.atproto
+import pano_scrobbler.composeapp.generated.resources.atproto_connected
 import pano_scrobbler.composeapp.generated.resources.scrobbles
 import pano_scrobbler.composeapp.generated.resources.search
 import pano_scrobbler.composeapp.generated.resources.simple_edits
@@ -218,6 +220,7 @@ fun PrefsScreen(
     val proxy by Requesters.proxy.collectAsStateWithLifecycle()
     val userAccounts by
     mainPrefs.data.collectAsStateWithInitialValue { p -> p.scrobbleAccounts.associateBy { it.type } }
+    val atprotoConnection by mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection }
     val updateProgress by remember {
         UpdaterWork.getProgress().filter { it.state == CommonWorkState.RUNNING }
     }.collectAsStateWithLifecycle(null)
@@ -1018,6 +1021,14 @@ fun PrefsScreen(
                 }
             }
 
+        filteredItem("atproto", Res.string.atproto) { title ->
+            TextPref(
+                text = title,
+                summary = atprotoConnection?.let { stringResource(Res.string.atproto_connected, it.handle) },
+                onClick = { onNavigate(PanoRoute.LoginAtproto) },
+            )
+        }
+
         filteredItem(key = "delete", Res.string.delete_account) { title ->
             TextPref(
                 text = title,
@@ -1190,4 +1201,3 @@ private data class TitleStringResource(
     val formatRes: StringResource?,
     var string: String? = null
 )
-

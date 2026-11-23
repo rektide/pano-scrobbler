@@ -266,7 +266,8 @@ fun PanoAppContent(
 
     val currentAccountType by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccountType }
     val userSelf by PlatformStuff.mainPrefs.data
-        .collectAsStateWithInitialValue { it.currentAccount?.user }
+        .collectAsStateWithInitialValue { it.currentScrobblableAccount?.user }
+    val atprotoConnected by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection != null }
     val bottomSheetState = rememberBottomSheetState(
         initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
@@ -286,8 +287,9 @@ fun PanoAppContent(
         },
         when {
             isDialogActivity -> PanoRoute.Blank
-            userSelf == null -> PanoRoute.Onboarding
-            else -> PanoRoute.SelfHomePager()
+            userSelf != null -> PanoRoute.SelfHomePager()
+            atprotoConnected -> PanoRoute.LoginAtproto
+            else -> PanoRoute.Onboarding
         }
     )
 
@@ -295,7 +297,7 @@ fun PanoAppContent(
         backStack.lastOrNull { !it.isModal() }
     }
 
-    val currentUser = remember(currentPanoRoute, currentAccountType) {
+    val currentUser = remember(currentPanoRoute, currentAccountType, userSelf) {
         backStack
             .filterIsInstance<PanoRoute.HasUser>()
             .lastOrNull()
@@ -376,6 +378,8 @@ fun PanoAppContent(
                 // expand the whole chain
                 if (last is PanoRoute.Modal.CanExpand && last.isExpanded && route is PanoRoute.Modal.CanExpand)
                     backStack.add(route.copyExpanded())
+                else if (route == PanoRoute.LoginAtproto && route in backStack)
+                    while (backStack.last() != route) backStack.removeLast()
                 else
                     backStack.add(route)
             }
@@ -460,10 +464,18 @@ fun PanoAppContent(
         }
     }
 
-    // show onboarding again when logged out
-    LaunchedEffect(currentUser == null) {
-        if (currentUser == null && PanoRoute.Onboarding !in backStack)
-            replaceRoutes(listOf(PanoRoute.Onboarding))
+    // Keep account management available without trying to open Recents for an AT-only login.
+    LaunchedEffect(userSelf != null, atprotoConnected) {
+        if (!isDialogActivity) {
+            when {
+                userSelf != null && backStack.firstOrNull() == PanoRoute.LoginAtproto ->
+                    backStack[0] = PanoRoute.SelfHomePager()
+                userSelf == null && atprotoConnected && backStack.firstOrNull() is PanoRoute.SelfHomePager ->
+                    backStack[0] = PanoRoute.LoginAtproto
+                userSelf == null && !atprotoConnected && PanoRoute.Onboarding !in backStack ->
+                    replaceRoutes(listOf(PanoRoute.Onboarding))
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -853,7 +865,7 @@ fun PanoAppContent(
                                 goBack = ::goBack,
                                 onExpandModal = ::expandModal,
                                 onSetOnboardingFinished = {
-                                    replaceRoutes(listOf(PanoRoute.SelfHomePager()))
+                                    replaceRoutes(listOf(if (userSelf != null) PanoRoute.SelfHomePager() else PanoRoute.LoginAtproto))
                                 },
                                 pullToRefreshState = { pullToRefreshState },
                                 onSetRefreshing = { tab, prState ->
