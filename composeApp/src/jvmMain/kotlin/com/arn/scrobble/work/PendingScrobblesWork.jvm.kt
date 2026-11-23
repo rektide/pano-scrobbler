@@ -3,6 +3,8 @@ package com.arn.scrobble.work
 actual object PendingScrobblesWork : CommonWorkImpl(PendingScrobblesWorker.NAME) {
     const val RETRY_DELAY_HOURS = 1L
 
+    actual fun scheduleAtDelivery(force: Boolean) = schedule(force)
+
     actual fun schedule(force: Boolean) {
         val retryPolicy = RetryPolicy(
             initialDelayMillis = RETRY_DELAY_HOURS * 60 * 60 * 1000,

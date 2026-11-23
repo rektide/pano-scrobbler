@@ -19,6 +19,8 @@ internal data class AtListen(
     val image: String? = null,
     val ref: AtRef? = null,
     val catalogUri: String? = null,
+    val releaseMbid: String? = null,
+    val expiry: Long? = null,
 )
 
 internal data class AtPublicProfile(val displayName: String?, val handle: String?, val avatar: String?, val source: String)
@@ -89,11 +91,12 @@ internal class AtPublic(
     suspend fun live(query: AtHistoryQuery): AtListen? {
         val address = AtAddress(query.identity.did, query.target.status, "self")
         val record = wire.record(query.identity.pds, address) ?: return null
-        val data = validLive(record.value, query.target, clock()) ?: return null
+        val live = validLive(record.value, query.target, clock()) ?: return null
+        val data = live.item
         return when (query.target) {
-            AtTarget.TEAL -> tealListen(data, address.uri)?.copy(time = null)
+            AtTarget.TEAL -> tealListen(data, address.uri)?.takeIf { it.artist.isNotBlank() }?.copy(time = null, expiry = live.expiry)
             AtTarget.ROCKSKY -> AtListen(address.uri, data.text("name").atField(512) ?: return null,
-                data.text("artist").atField(256) ?: return null, data.text("album"), null, image(data.text("albumCoverUrl")))
+                data.text("artist").atField(256) ?: return null, data.text("album"), null, image(data.text("albumCoverUrl")), expiry = live.expiry)
         }
     }
 
@@ -142,7 +145,8 @@ private fun tealListen(data: JsonObject, id: String, ref: AtRef? = null): AtList
     val title = data.text("trackName").atField(256) ?: return null
     val artist = data.array("artists").orEmpty().filterIsInstance<JsonObject>().mapNotNull { it.text("artistName") }
         .ifEmpty { data.strings("artistNames") }.joinToString(", ")
-    return AtListen(id, title, artist, data.text("releaseName"), instantMs(data.text("playedTime")), ref = ref)
+    return AtListen(id, title, artist, data.text("releaseName"), instantMs(data.text("playedTime")), ref = ref,
+        releaseMbid = data.text("releaseMbId")?.takeIf { it.startsWith("mbid:") }?.removePrefix("mbid:")?.let(::mbid))
 }
 
 private fun JsonObject.rockskyListen(did: String): AtListen? {

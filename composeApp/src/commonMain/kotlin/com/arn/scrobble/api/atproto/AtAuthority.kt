@@ -30,6 +30,7 @@ internal class AtAuthority(
     private val connected: suspend (String) -> Unit = { atOutbox.retry(it) },
 ) {
     private val oauth = AtOAuth(public, transport, clock)
+    private var resourceNonce: Pair<String, String>? = null
     val notices = MutableStateFlow<AtProblem?>(null)
     val changed = MutableStateFlow("")
 
@@ -43,7 +44,7 @@ internal class AtAuthority(
     }
 
     suspend fun appPassword(identifier: String, password: String, settings: AtSettings, allowFile: Boolean) {
-        checkAt(password.matches(Regex("[a-zA-Z0-9]{4}(?:-[a-zA-Z0-9]{4}){3}")), AtProblem.LOGIN)
+        checkAt(password.length in 8..512 && password.none(Char::isISOControl), AtProblem.LOGIN)
         val identity = resolve(identifier)
         vault.locked(allowFile) {
             val pds = secureUrl(identity.pds)
@@ -94,9 +95,14 @@ internal class AtAuthority(
         changed.value = session.generation
     }
 
-    suspend fun settings(did: String, settings: AtSettings) = vault.locked {
-        checkAt(state.active?.did == did, AtProblem.RECONNECT)
-        save(state.copy(settings = state.settings + (did to settings), pending = null))
+    suspend fun settings(did: String, settings: AtSettings) {
+        val newlyEnabled = vault.locked {
+            checkAt(state.active?.did == did, AtProblem.RECONNECT)
+            val enabled = settings.completed - state.settings[did]?.completed.orEmpty()
+            save(state.copy(settings = state.settings + (did to settings), pending = null))
+            enabled.isNotEmpty()
+        }
+        if (newlyEnabled) connected(did)
     }
 
     /** Returns false if no remote session revocation could be confirmed; local use is always cleared. */
@@ -135,8 +141,12 @@ internal class AtAuthority(
         checkGrant(session, collection, mutation)
         val url = secureUrl(session.identity.pds).xrpc(mutation.nsid).build()
         val reply = if (session.method == AtMethod.OAUTH) {
-            // PDS nonces deliberately do not overwrite the AS nonce. Each PDS call recovers at most once.
-            oauth.dpop(url, session.signer!!.copy(nonce = null), body.requestBody(), session.access).first
+            // PDS nonces deliberately do not overwrite the AS nonce, even when both share a host.
+            val nonceKey = "${session.generation}:${session.identity.pds}"
+            val last = resourceNonce?.takeIf { it.first == nonceKey }?.second
+            val result = oauth.dpop(url, session.signer!!.copy(nonce = last), body.requestBody(), session.access)
+            result.second?.let { resourceNonce = nonceKey to it }
+            result.first
         } else transport.post(url, body.requestBody(), mapOf("Authorization" to "Bearer ${session.access}"))
         if (reply.code == 401 && reply.error in setOf("ExpiredToken", "InvalidToken", "invalid_token", "AuthenticationRequired")) {
             save(state.copy(session = session.copy(expires = 0)))

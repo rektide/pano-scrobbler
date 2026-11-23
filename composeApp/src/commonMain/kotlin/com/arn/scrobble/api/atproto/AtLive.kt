@@ -100,7 +100,9 @@ internal fun ScrobbleData.statusRecord(target: AtTarget, start: Long, expires: L
     }
 }
 
-internal fun validLive(value: JsonObject, target: AtTarget, now: Long): JsonObject? {
+internal data class AtLiveView(val item: JsonObject, val expiry: Long)
+
+internal fun validLive(value: JsonObject, target: AtTarget, now: Long): AtLiveView? {
     if (value.text("\$type") != target.status) return null
     val start = instantMs(value.text(if (target == AtTarget.TEAL) "time" else "startedAt")) ?: return null
     if (start !in (now - 600_000)..now) return null
@@ -108,7 +110,7 @@ internal fun validLive(value: JsonObject, target: AtTarget, now: Long): JsonObje
     val expiry = if (expiresKey in value) instantMs(value.text(expiresKey)) ?: return null
         else start + if (target == AtTarget.TEAL) 600_000 else liveLength(value.obj("track")?.number("durationMs"))
     if (expiry <= now || expiry <= start || expiry - start > 600_000) return null
-    return value.obj(if (target == AtTarget.TEAL) "item" else "track")
+    return value.obj(if (target == AtTarget.TEAL) "item" else "track")?.let { AtLiveView(it, expiry) }
 }
 
 internal val atLive = AtLive()

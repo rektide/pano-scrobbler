@@ -15,6 +15,13 @@ actual object PendingScrobblesWork : CommonWorkImpl(PendingScrobblesWorker.NAME)
 
     private var scheduledFromBg = false
 
+    actual fun scheduleAtDelivery(force: Boolean) {
+        // AT Protocol stages rows before first send; unlike the legacy failure path, every
+        // newly staged batch may be the first work since the worker last finished.
+        if (AndroidStuff.isMainProcess) schedule(force)
+        else WorkEnqueuerReceiver.broadcast(AndroidStuff.applicationContext, name, force)
+    }
+
     actual fun schedule(force: Boolean) {
         if (!AndroidStuff.isMainProcess) {
             // todo find a better way to schedule from other processes

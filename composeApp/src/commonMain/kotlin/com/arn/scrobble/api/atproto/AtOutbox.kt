@@ -26,7 +26,7 @@ internal class AtOutbox(
     private val dao: () -> AtDeliveryDao = { PanoDb.db.atDeliveryDao() },
     private val authority: AtAuthority = atAuthority,
     private val public: AtWire = anonymousAt,
-    private val schedule: (Boolean) -> Unit = PendingScrobblesWork::schedule,
+    private val schedule: (Boolean) -> Unit = PendingScrobblesWork::scheduleAtDelivery,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val tid = AtTid(clock)
@@ -69,7 +69,9 @@ internal class AtOutbox(
             val outcome = try { send(identity, row) }
             catch (e: CancellationException) { throw e }
             catch (e: AtFailure) { when (e.problem) {
-                AtProblem.RECONNECT, AtProblem.PERMISSION, AtProblem.STORAGE -> Outcome("PAUSED")
+                AtProblem.RECONNECT -> Outcome("RECONNECT")
+                AtProblem.PERMISSION -> Outcome("PERMISSION")
+                AtProblem.STORAGE -> Outcome("RETRY")
                 AtProblem.CONFLICT -> Outcome("CONFLICT")
                 AtProblem.INPUT -> Outcome("METADATA")
                 else -> Outcome("RETRY")
@@ -78,7 +80,7 @@ internal class AtOutbox(
             val retry = clock() + backoff(row.attempts)
             val next = when (outcome.state) {
                 "RETRY" -> maxOf(outcome.retryAfter ?: 0, retry)
-                "PAUSED" -> retry
+                "RECONNECT", "PERMISSION" -> retry
                 else -> 0
             }
             dao.finish(row.did, row.tid, row.target, claim, outcome.state, next, outcome.ref?.address?.uri, outcome.ref?.cid)
@@ -114,8 +116,8 @@ internal class AtOutbox(
             return try { Outcome("ACK", AtRef.read(reply.json, address)) }
             catch (_: AtFailure) { reconcile() ?: Outcome("RETRY") }
         }
-        if (reply.code == 403 || reply.error in setOf("InsufficientScope", "insufficient_scope")) return Outcome("PAUSED")
-        if (reply.code == 401) return Outcome("PAUSED")
+        if (reply.code == 403 || reply.error in setOf("InsufficientScope", "insufficient_scope")) return Outcome("PERMISSION")
+        if (reply.code == 401) return Outcome("RECONNECT")
         if (reply.transient) return Outcome("RETRY", retryAfter = retryTime(reply.retryAfter, clock()))
         reconcile()?.let { return it }
         return if (reply.code == 400) Outcome("REJECTED") else Outcome("RETRY")

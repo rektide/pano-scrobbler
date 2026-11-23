@@ -79,6 +79,8 @@ kotlin {
     sourceSets {
 
         androidMain.dependencies {
+            // Nimbus bundles shaded Gson, whose bytecode retains these annotation references.
+            implementation("com.google.errorprone:error_prone_annotations:2.41.0")
             implementation(libs.core)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.activity.compose)

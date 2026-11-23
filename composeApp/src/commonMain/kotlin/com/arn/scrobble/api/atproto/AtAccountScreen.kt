@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun hasAtAccount(): Boolean {
     val changed by atAuthority.changed.collectAsState()
+    val notices by atAuthority.notices.collectAsState()
     val present by produceState(false, changed) {
         value = try { atAuthority.account().identity != null } catch (_: AtFailure) { false }
     }
@@ -57,6 +58,16 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
         // A missing POSIX vault before first opt-in is normal.
         try { reload() } catch (e: AtFailure) { if (!PlatformStuff.isDesktop) error = e.problem.text }
     }
+    LaunchedEffect(account?.identity?.did) {
+        val did = account?.identity?.did ?: return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(3000)
+            try {
+                val renewed = atAuthority.account()
+                if (renewed.identity?.did == did) account = renewed
+            } catch (e: AtFailure) { error = e.problem.text }
+        }
+    }
     val identity = account?.identity
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("One account can send to Teal, Rocksky, or both.")
@@ -71,6 +82,8 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
             })
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        notices?.takeUnless { it.text == error || it == AtProblem.STORAGE && identity == null }
+            ?.let { Text(it.text, color = MaterialTheme.colorScheme.error) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         OutlinedTextField(identifier, { identifier = it }, enabled = !busy, singleLine = true, label = { Text("Handle or DID") })
         fun edit(next: AtSettings) {
@@ -156,6 +169,8 @@ private fun AtPendingList(did: String, changed: String, onRetry: () -> Unit) {
             val title = runCatching { kotlinx.serialization.json.Json.decodeFromString<com.arn.scrobble.api.lastfm.ScrobbleData>(row.original).track }.getOrNull() ?: "Listen"
             val reason = when (row.state) {
                 "PAUSED" -> "Authorization needed or destination permission missing"
+                "RECONNECT" -> "Authorization needed"
+                "PERMISSION" -> "Destination permission missing"
                 "RETRY" -> "Offline/retrying"
                 "CONFLICT" -> "Record conflict"
                 "METADATA" -> "Required track metadata missing or invalid"

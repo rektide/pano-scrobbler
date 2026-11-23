@@ -29,6 +29,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     var error by remember { mutableStateOf<String?>(null) }
     var auxError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var enrich by remember { mutableStateOf(false) }
     var section by remember { mutableStateOf(AtSection.HISTORY) }
     var period by remember { mutableStateOf(AtPeriod.MONTH) }
     var results by remember { mutableStateOf<AtReadPage<String, AtInsight>?>(null) }
@@ -99,6 +100,11 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     }
 
     LaunchedEffect(defaultDid) { if (!defaultDid.isNullOrEmpty()) load(target) }
+    LaunchedEffect(status) {
+        val expires = status?.expiry ?: return@LaunchedEffect
+        kotlinx.coroutines.delay((expires - System.currentTimeMillis()).coerceAtLeast(0))
+        status = null
+    }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,10 +136,15 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
             notice?.let { Text(it) }
             if (section == AtSection.HISTORY) {
                 if (page == 1) status?.let { AtListenRow(it, "Now playing · PDS") }
+                if (loaded.target == AtTarget.TEAL) Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(enrich, { enrich = it })
+                    Text("Look up album artwork from Cover Art Archive using the release’s MusicBrainz ID")
+                }
                 content?.let { result ->
                 if (result.values.isEmpty()) Text(if (result.next != null) "No matching plays on this page. More pages are available." else "No plays on this page.")
                 result.values.forEach { item ->
-                    AtListenRow(item, action = {
+                    val art = item.image ?: item.releaseMbid?.takeIf { enrich }?.let { "https://coverartarchive.org/release/$it/front-250" }
+                    AtListenRow(item.copy(image = art), action = {
                         TextButton(enabled = !busy, onClick = {
                             selected = item
                             subject = null
