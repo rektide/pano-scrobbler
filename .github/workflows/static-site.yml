@@ -100,6 +100,9 @@ jobs:
         run: |
           sed -i 's|}</script>|,"sameAs":["https://github.com/kawaiiDango/pano-scrobbler/"],"operatingSystem":"Windows, Linux, Android","applicationCategory":"MultimediaApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"screenshot": ${{ steps.screenshot_jsonld_arr.outputs.screenshot_jsonld_arr }} }</script>|' static-site/index.html
 
+      - name: Install OAuth client metadata and check Pages artifact
+        run: python3 .github/scripts/install-oauth-metadata.py static-site
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
