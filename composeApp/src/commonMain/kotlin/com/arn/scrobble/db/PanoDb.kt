@@ -20,8 +20,9 @@ import com.arn.scrobble.utils.PlatformStuff
         SeenAlbum::class,
         SeenTrackAlbumAssociation::class,
         AtDelivery::class,
+        AtLiveOwner::class,
     ],
-    version = 22,
+    version = 23,
     autoMigrations = [
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11, spec = Spec_10_11::class),
@@ -35,12 +36,14 @@ import com.arn.scrobble.utils.PlatformStuff
         AutoMigration(from = 19, to = 20),
         AutoMigration(from = 20, to = 21),
         AutoMigration(from = 21, to = 22),
+        AutoMigration(from = 22, to = 23),
     ],
 )
 @ConstructedBy(PanoDbConstructor::class)
 abstract class PanoDb : RoomDatabase() {
     abstract fun getPendingScrobblesDao(): PendingScrobblesDao
     abstract fun atDeliveryDao(): AtDeliveryDao
+    abstract fun atLiveDao(): AtLiveDao
     abstract fun getSimpleEditsDao(): SimpleEditsDao
     abstract fun getRegexEditsDao(): RegexEditsDao
     abstract fun getBlockedMetadataDao(): BlockedMetadataDao

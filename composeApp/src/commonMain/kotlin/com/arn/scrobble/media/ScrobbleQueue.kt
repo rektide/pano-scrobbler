@@ -1,5 +1,9 @@
 package com.arn.scrobble.media
 
+import com.arn.scrobble.api.atproto.AtPlayback
+import com.arn.scrobble.api.atproto.atLive
+import com.arn.scrobble.api.atproto.atSecret
+
 import co.touchlab.kermit.Logger
 import com.arn.scrobble.api.AccountType
 import com.arn.scrobble.api.Scrobblable
@@ -86,6 +90,10 @@ class ScrobbleQueue(
                 }
             }
         val origScrobbleData = trackInfo.toScrobbleData(useOriginals = true)
+        val livePlayback = if (timestampOverride == null) {
+            trackInfo.atPlayback?.takeIf { it.hash == hash && prevPlayStartTime != null }
+                ?: AtPlayback(atSecret(), hash, System.currentTimeMillis()).also { trackInfo.atPlayback = it }
+        } else null
 
         suspend fun nowPlayingAndSubmit(
             sd: ScrobbleData,
@@ -95,6 +103,12 @@ class ScrobbleQueue(
 
             val submitNowPlaying =
                 PlatformStuff.mainPrefs.data.map { it.submitNowPlaying }.first()
+
+            if (livePlayback != null) {
+                scope.launch(Dispatchers.IO) {
+                    atLive.start(livePlayback, sd) { trackInfo.atPlayback == livePlayback && trackInfo.isPlaying }
+                }
+            }
 
             // now playing for a new track or after that of the previously paused track has expired
             if (
@@ -332,5 +346,11 @@ class ScrobbleQueue(
         if (scrobbleTasks.remove(hash)?.cancel() != null) {
             Logger.d { "${hash.toHexString()} cancelled" }
         }
+    }
+
+    internal fun stopAtStatus(trackInfo: PlayingTrackInfo) {
+        val playback = trackInfo.atPlayback ?: return
+        trackInfo.atPlayback = null
+        scope.launch(Dispatchers.IO) { atLive.stop(playback) }
     }
 }

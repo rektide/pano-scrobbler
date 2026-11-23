@@ -305,6 +305,7 @@ abstract class MediaListener(
         }
 
         fun ignoreScrobble() {
+            scrobbleQueue.stopAtStatus(trackInfo)
             // scrobbling may have already started from onMetadataChanged
             scrobbleQueue.remove(trackInfo.lastScrobbleHash)
             PanoNotifications.removeNotificationByKey(trackInfo.notiKey)
@@ -411,6 +412,7 @@ abstract class MediaListener(
         }
 
         open fun pause() {
+            scrobbleQueue.stopAtStatus(trackInfo)
             if (lastPlaybackState == CommonPlaybackState.Playing) {
                 if (scrobbleQueue.has(trackInfo.lastScrobbleHash))
                     trackInfo.addTimePlayed()
@@ -430,6 +432,7 @@ abstract class MediaListener(
         }
 
         open fun stop() {
+            scrobbleQueue.stopAtStatus(trackInfo)
             DiscordRpc.paused(trackInfo.hash)
         }
 

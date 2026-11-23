@@ -74,7 +74,12 @@ internal fun AtAccountScreen(modifier: Modifier) {
         OutlinedTextField(identifier, { identifier = it }, enabled = !busy, singleLine = true, label = { Text("Handle or DID") })
         fun edit(next: AtSettings) {
             if (identity == null) settings = next
-            else run { atAuthority.settings(identity.did, next); settings = next }
+            else run {
+                val noLongerLive = settings.live - next.live
+                atAuthority.settings(identity.did, next)
+                atLive.disable(identity.did, noLongerLive)
+                settings = next
+            }
         }
         AtTarget.entries.forEach { target ->
             AtToggle("Send completed plays to ${target.label}", target in settings.completed, !busy) {

@@ -1,5 +1,7 @@
 package com.arn.scrobble.media
 
+import com.arn.scrobble.api.atproto.AtPlayback
+
 import com.arn.scrobble.api.lastfm.ScrobbleData
 import com.arn.scrobble.utils.MetadataUtils
 import com.arn.scrobble.utils.PlatformStuff
@@ -99,6 +101,7 @@ class PlayingTrackInfo(
     var timePlayed: Long = cachedTrackInfo?.timePlayed ?: 0L
         private set
     var lastScrobbleHash: Int = cachedTrackInfo?.lastScrobbleHash ?: 0
+    @Volatile internal var atPlayback: AtPlayback? = null
         private set
 
     val sessionStartTime = PlatformStuff.monotonicTimeMs()
