@@ -15,7 +15,9 @@ import java.net.URLDecoder
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -31,15 +33,16 @@ enum class AtprotoOAuthPermission(val scope: String) {
 }
 
 class AtprotoOAuthSession(
-    val did: String,
-    val pds: String,
+    override val did: String,
+    override val pds: String,
     val issuer: String,
     val scopes: Set<String>,
-    val expiresInSeconds: Long,
+    val expiresAt: Instant,
     val accessToken: String,
     val refreshToken: String?,
     val dpop: AtprotoOAuthDpop,
-)
+    val clientId: String = ATPROTO_CLIENT_ID,
+) : AtprotoSession
 
 /** Holds the browser URL and the pending in-memory sign-in. */
 class AtprotoOAuthSignIn(
@@ -158,6 +161,7 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
             "code" to code,
             "code_verifier" to verifier,
         ))
+        val receivedAt = Clock.System.now()
         if (token.subject != identity.did || !token.tokenType.equals("DPoP", ignoreCase = true) ||
             token.expiresIn <= 0 || !token.accessToken.isOAuthCredential() ||
             token.refreshToken?.isOAuthCredential() == false
@@ -166,7 +170,7 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
         val granted = token.scope.split(' ').map(::canonicalScope).toSet()
         if (granted != scopes.map(::canonicalScope).toSet())
             throw ApiException(-1, "AT Protocol did not grant the selected permissions")
-        return AtprotoOAuthSession(identity.did, identity.pds, server.issuer, granted, token.expiresIn,
+        return AtprotoOAuthSession(identity.did, identity.pds, server.issuer, granted, receivedAt + token.expiresIn.seconds,
             token.accessToken, token.refreshToken, dpop)
     }
 }
@@ -187,6 +191,11 @@ private fun canonicalScope(scope: String): String = scope.substringBefore('?').l
  */
 class AtprotoOAuthDpop(private val key: ECKey) {
     private val nonces = mutableMapOf<String, String>()
+
+    internal fun privateJwkForStorage(): String {
+        require(key.curve == Curve.P_256 && key.d != null)
+        return key.toJSONString()
+    }
 
     fun proof(method: String, url: HttpUrl, accessToken: String? = null): String =
         key.atprotoDpop(method, url, nonces[url.oauthOrigin()], accessToken)

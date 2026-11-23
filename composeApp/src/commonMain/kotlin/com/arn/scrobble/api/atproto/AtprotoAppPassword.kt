@@ -13,11 +13,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 
 class AtprotoAppPasswordSession(
-    val did: String,
-    val pds: String,
+    override val did: String,
+    override val pds: String,
     val accessJwt: String,
     val refreshJwt: String,
-)
+) : AtprotoSession
 
 @Serializable
 private class CreateSessionRequest(val identifier: String, val password: String)
