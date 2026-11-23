@@ -65,6 +65,7 @@ compose.desktop {
     application {
         mainClass = "com.arn.scrobble.main.MainKt"
         jvmArgs += commonJvmArgs()
+        if (IS_LINUX) jvmArgs += "-Dpano.dev.oauthHandler=true"
 //        args += "-m"
 
         nativeDistributions {
@@ -72,12 +73,6 @@ compose.desktop {
             vendor = "kawaiiDango"
             packageName = APP_NAME_NO_SPACES
         }
-    }
-}
-
-if (IS_LINUX) {
-    tasks.withType<JavaExec>().configureEach {
-        if (name == "run") jvmArgs("-Dpano.dev.oauthHandler=true")
     }
 }
 
