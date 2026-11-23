@@ -6,6 +6,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl
+import io.github.kikin81.atproto.runtime.AtUri
+import io.github.kikin81.atproto.runtime.parseOrNull
 import org.jetbrains.compose.resources.StringResource
 import pano_scrobbler.composeapp.generated.resources.Res
 import pano_scrobbler.composeapp.generated.resources.at_public_profile
@@ -53,7 +55,17 @@ internal class AtPageWalk<C : Any, T>(private val first: C, private val id: (T) 
     }
 }
 
-internal data class AtHistoryQuery(val target: AtTarget, val identity: AtIdentity, val from: Long?, val until: Long?, val limit: Int = 50)
+internal enum class AtReadSource(val target: AtTarget) {
+    TEAL_PDS(AtTarget.TEAL), ROCKSKY_INDEX(AtTarget.ROCKSKY), ROCKSKY_PDS(AtTarget.ROCKSKY),
+}
+
+internal data class AtHistoryQuery(val target: AtTarget, val identity: AtIdentity, val from: Long?, val until: Long?, val limit: Int = 50,
+                                   val source: AtReadSource = if (target == AtTarget.TEAL) AtReadSource.TEAL_PDS else AtReadSource.ROCKSKY_INDEX) {
+    init { require(source.target == target) }
+}
+
+internal data class AtCatalog(val uri: String, val title: String, val artist: String?, val album: String?, val image: String?,
+                              val mbid: String?, val isrc: String?)
 
 internal class AtPublic(
     private val wire: AtWire = anonymousAt,
@@ -64,7 +76,7 @@ internal class AtPublic(
 
     fun history(query: AtHistoryQuery): AtPageWalk<String, AtListen> = AtPageWalk("", AtListen::id) { continuation ->
         checkAt(query.limit in 1..50)
-        val page = if (query.target == AtTarget.TEAL) repoHistory(query, continuation)
+        val page = if (query.source != AtReadSource.ROCKSKY_INDEX) repoHistory(query, continuation)
             else rockskyHistory(query, continuation.toIntOrNull() ?: 0)
         page.copy(values = page.values.filter { item -> item.time?.let { time ->
             (query.from == null || time >= query.from) && (query.until == null || time < query.until)
@@ -80,7 +92,11 @@ internal class AtPublic(
             val ref = try { AtRef.read(objectRow, address) } catch (_: AtFailure) { return@mapNotNull null }
             val data = objectRow.obj("value") ?: return@mapNotNull null
             if (data.text("\$type") != query.target.play) return@mapNotNull null
-            tealListen(data, address.uri, ref)
+            when (query.target) {
+                AtTarget.TEAL -> tealListen(data, address.uri, ref)
+                AtTarget.ROCKSKY -> AtListen(address.uri, data.text("title").atField(512) ?: return@mapNotNull null,
+                    data.text("artist").orEmpty(), data.text("album"), instantMs(data.text("createdAt")), image(data.text("albumArtUrl")), ref)
+            }
         }
         return AtReadPage(values, doc.text("cursor")?.takeIf(String::isNotEmpty))
     }
@@ -118,6 +134,15 @@ internal class AtPublic(
         return AtPublicProfile(doc.text("displayName"), doc.text("handle"), image(doc.text("avatar")), Res.string.at_public_profile)
     }
 
+    suspend fun catalog(uri: String): AtCatalog {
+        val endpoint = catalogEndpoint(uri) ?: throw AtFailure(AtProblem.INPUT)
+        val doc = json(secureUrl(ROCKSKY_VIEW).xrpc(endpoint).addQueryParameter("uri", uri).build())
+        checkAt(doc.text("uri") == uri)
+        return AtCatalog(uri, doc.text(if (endpoint.endsWith("getArtist")) "name" else "title") ?: throw AtFailure(AtProblem.RESPONSE),
+            doc.text("artist"), doc.text("album"), image(doc.text("albumArt") ?: doc.text("picture")),
+            mbid(doc.text("mbid") ?: doc.text("mbId")), atIsrc(doc.text("isrc")))
+    }
+
     suspend fun listRecords(identity: AtIdentity, collection: String, limit: Int, cursor: String?) =
         json(secureUrl(identity.pds).xrpc("com.atproto.repo.listRecords").addQueryParameter("repo", identity.did)
             .addQueryParameter("collection", collection).addQueryParameter("limit", limit.toString()).apply {
@@ -135,6 +160,19 @@ internal class AtPublic(
     suspend fun json(url: HttpUrl): JsonObject = wire.get(url).let {
         checkAt(it.ok, if (it.transient) AtProblem.NETWORK else AtProblem.RESPONSE)
         it.json
+    }
+}
+
+internal fun catalogEndpoint(raw: String): String? {
+    val parsed = AtUri(raw).parseOrNull() ?: return null
+    val did = parsed.repo.raw
+    val collection = parsed.collection?.raw ?: return null
+    if (!did.matches(Regex("did:(plc:[a-z2-7]{24}|web:[a-zA-Z0-9.-]+)")) || actorAddress(raw, did, collection) == null) return null
+    return when (collection) {
+        "app.rocksky.song" -> "app.rocksky.song.getSong"
+        "app.rocksky.album" -> "app.rocksky.album.getAlbum"
+        "app.rocksky.artist" -> "app.rocksky.artist.getArtist"
+        else -> null
     }
 }
 

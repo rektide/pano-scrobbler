@@ -32,7 +32,7 @@ Compression=lzma2
 SolidCompression=yes
 OutputDir={#OUT_DIR}
 OutputBaseFilename=pano-scrobbler-windows-x64
-ChangesAssociations=no
+ChangesAssociations=yes
 UserInfoPage=no
 PrivilegesRequiredOverridesAllowed=dialog
 SetupArchitecture=x64
@@ -80,6 +80,9 @@ Type: files; Name: "{app}\install.log"; Check: HasNsisLeftovers
 Type: files; Name: "{app}\Uninstall.exe"; Check: HasNsisLeftovers
 
 [Registry]
+Root: HKA; Subkey: "Software\Classes\io.github.kawaiidango"; ValueType: string; ValueData: "URL:Pano Scrobbler OAuth"; Tasks: not extractonly; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\io.github.kawaiidango"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Tasks: not extractonly
+Root: HKA; Subkey: "Software\Classes\io.github.kawaiidango\shell\open\command"; ValueType: string; ValueData: """{app}\{#EXE_NAME}"" --atproto-callback ""%1"""; Tasks: not extractonly
 ; leftover from nsis
 Root: HKA; Subkey: "{#NSIS_APP_SOFTWARE_KEY}\{#APP_NAME}"; Flags: deletekey; Check: HasNsisLeftovers
 Root: HKA; Subkey: "{#NSIS_UNINST_KEY}\{#APP_NAME}"; Flags: deletekey; Check: HasNsisLeftovers

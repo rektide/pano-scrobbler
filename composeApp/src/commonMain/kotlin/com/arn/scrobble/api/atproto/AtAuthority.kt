@@ -95,7 +95,7 @@ internal class AtAuthority(
         }
     }
 
-    suspend fun finishBrowser(callback: String) {
+    suspend fun finishBrowser(callback: String, wakeWorker: Boolean = true) {
         val parameters = parseAtCallback(callback)
         val did = vault.locked {
             val pending = state.pending ?: throw AtFailure(AtProblem.CALLBACK)
@@ -115,7 +115,7 @@ internal class AtAuthority(
             install(session, pending.settings)
             pending.identity.did
         }
-        connected(did)
+        if (wakeWorker) connected(did)
     }
 
     private suspend fun AtVault.Transaction.choices(did: String, fallback: AtSettings): AtSettings {

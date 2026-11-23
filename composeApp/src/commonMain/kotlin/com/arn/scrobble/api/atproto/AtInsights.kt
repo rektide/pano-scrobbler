@@ -2,12 +2,11 @@ package com.arn.scrobble.api.atproto
 
 import kotlinx.serialization.json.JsonObject
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.getString
 import pano_scrobbler.composeapp.generated.resources.*
 import java.time.Instant
 
 internal enum class AtSection(val label: StringResource) {
-    HISTORY(Res.string.at_section_history), ARTISTS(Res.string.at_section_artists), RELEASES(Res.string.at_section_releases),
+    HISTORY(Res.string.at_section_history), ARTISTS(Res.string.at_section_artists), RELEASES(Res.string.at_section_releases), SONGS(Res.string.at_section_songs),
     ACTIVITY(Res.string.at_section_activity), LOVED(Res.string.at_section_loved), FOLLOWING(Res.string.at_section_following),
     FOLLOWERS(Res.string.at_section_followers),
 }
@@ -23,12 +22,17 @@ internal fun AtTarget.limitation(section: AtSection): StringResource? = when {
     else -> null
 }
 
-internal data class AtInsight(val id: String, val name: String, val detail: String? = null, val image: String? = null, val actor: String? = null)
+internal fun AtHistoryQuery.limitation(section: AtSection): StringResource? =
+    if (source == AtReadSource.ROCKSKY_PDS && section != AtSection.HISTORY) Res.string.at_raw_history_only else target.limitation(section)
+
+internal data class AtInsight(val id: String, val name: String, val detail: String? = null, val image: String? = null,
+                              val actor: String? = null, val count: Long? = null, val rank: Int? = null,
+                              val indexedTotal: Boolean = false)
 
 internal fun AtPublic.insights(query: AtHistoryQuery, section: AtSection, period: AtPeriod, now: Long = System.currentTimeMillis()): AtPageWalk<String, AtInsight> =
     AtPageWalk("", AtInsight::id) { next ->
         val did = query.identity.did
-        checkAt(query.target.limitation(section) == null && section != AtSection.HISTORY)
+        checkAt(query.limitation(section) == null && section != AtSection.HISTORY, AtProblem.UNSUPPORTED)
         val limit = 50
         val offset = next.toIntOrNull() ?: 0
         val start = period.days?.let { Instant.ofEpochMilli(now - it * 86_400_000L).toString() }
@@ -38,13 +42,17 @@ internal fun AtPublic.insights(query: AtHistoryQuery, section: AtSection, period
                 .addQueryParameter("period", period.teal).addQueryParameter("limit", limit.toString()).build())
             checkAt(doc.text("did") == did && doc.text("period") == period.teal)
             val values = when (section) {
-                AtSection.ARTISTS, AtSection.RELEASES -> doc.rows(if (section == AtSection.ARTISTS) "artists" else "releases").mapIndexed { i, j ->
-                    val name = j.text(if (section == AtSection.ARTISTS) "name" else "releaseName") ?: throw AtFailure(AtProblem.RESPONSE)
+                AtSection.ARTISTS, AtSection.RELEASES, AtSection.SONGS -> doc.rows(when (section) {
+                    AtSection.ARTISTS -> "artists"; AtSection.RELEASES -> "releases"; else -> "tracks"
+                }).mapIndexed { i, j ->
+                    val name = j.text(when (section) {
+                        AtSection.ARTISTS -> "name"; AtSection.RELEASES -> "releaseName"; else -> "trackName"
+                    }) ?: throw AtFailure(AtProblem.RESPONSE)
                     val count = j.number("plays") ?: throw AtFailure(AtProblem.RESPONSE)
-                    AtInsight(i.toString(), name, getString(Res.string.at_plays_rank, i + 1, count))
+                    AtInsight(i.toString(), name, count = count, rank = i + 1)
                 }
-                AtSection.ACTIVITY -> listOf(AtInsight("plays", getString(Res.string.at_indexed_plays,
-                    doc.number("plays") ?: throw AtFailure(AtProblem.RESPONSE)), getString(period.label)))
+                AtSection.ACTIVITY -> listOf(AtInsight("plays", "", count = doc.number("plays") ?: throw AtFailure(AtProblem.RESPONSE),
+                    indexedTotal = true))
                 else -> throw AtFailure(AtProblem.RESPONSE)
             }
             AtReadPage(values, null)
@@ -69,16 +77,20 @@ internal fun AtPublic.insights(query: AtHistoryQuery, section: AtSection, period
                     AtInsight(id, row.text("title") ?: return@mapNotNull null, row.text("artist"), image(row.text("albumArt")))
                 }, (offset + rows.size).toString().takeIf { rows.size == limit })
             }
-            AtSection.ARTISTS, AtSection.RELEASES -> {
+            AtSection.ARTISTS, AtSection.RELEASES, AtSection.SONGS -> {
                 val artists = section == AtSection.ARTISTS
                 val dates = if (start == null) emptyMap() else mapOf("startDate" to start, "endDate" to end)
-                val rows = rocksky(if (artists) "actor.getActorArtists" else "actor.getActorAlbums", did, limit, offset, dates)
-                    .rows(if (artists) "artists" else "albums")
+                val (operation, property) = when (section) {
+                    AtSection.ARTISTS -> "actor.getActorArtists" to "artists"
+                    AtSection.RELEASES -> "actor.getActorAlbums" to "albums"
+                    else -> "actor.getActorSongs" to "tracks"
+                }
+                val rows = rocksky(operation, did, limit, offset, dates).rows(property)
                 AtReadPage(rows.mapIndexedNotNull { i, row ->
                     val id = row.text("uri") ?: row.text("id") ?: return@mapIndexedNotNull null
                     val name = row.text(if (artists) "name" else "title") ?: return@mapIndexedNotNull null
                     val count = row.number("playCount") ?: throw AtFailure(AtProblem.RESPONSE)
-                    AtInsight(id, name, getString(Res.string.at_plays_rank, offset + i + 1, count), image(row.text(if (artists) "picture" else "albumArt")))
+                    AtInsight(id, name, image = image(row.text(if (artists) "picture" else "albumArt")), count = count, rank = offset + i + 1)
                 }, (offset + rows.size).toString().takeIf { rows.size == limit })
             }
             AtSection.ACTIVITY -> {
@@ -86,7 +98,7 @@ internal fun AtPublic.insights(query: AtHistoryQuery, section: AtSection, period
                 val rows = rocksky("charts.getScrobblesChart", did, extra = mapOf("from" to start!!, "to" to end)).rows("scrobbles")
                 AtReadPage(rows.map { row ->
                     val date = row.text("date") ?: throw AtFailure(AtProblem.RESPONSE)
-                    AtInsight(date, date, getString(Res.string.at_play_count, row.number("count") ?: throw AtFailure(AtProblem.RESPONSE)))
+                    AtInsight(date, date, count = row.number("count") ?: throw AtFailure(AtProblem.RESPONSE))
                 }, null)
             }
             AtSection.HISTORY -> throw AtFailure(AtProblem.RESPONSE)

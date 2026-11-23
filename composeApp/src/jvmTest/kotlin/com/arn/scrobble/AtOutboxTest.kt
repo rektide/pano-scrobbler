@@ -3,11 +3,15 @@ package com.arn.scrobble
 import androidx.room3.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.arn.scrobble.api.atproto.*
+import com.arn.scrobble.api.AccountType
+import com.arn.scrobble.api.ScrobbleEvent
 import com.arn.scrobble.api.lastfm.ScrobbleData
 import com.arn.scrobble.db.PanoDb
 import com.arn.scrobble.db.RoomAtEnrollment
 import com.arn.scrobble.db.AtDeliveryDao
 import com.arn.scrobble.db.AtDelivery
+import com.arn.scrobble.db.PendingScrobble
+import com.arn.scrobble.db.AtEnrollment
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -23,6 +27,40 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 
 class AtOutboxTest {
+    @Test fun genericPendingReviewCopiesOrSkipsWithoutChangingServiceBits(): Unit = runBlocking {
+        val root = Files.createTempDirectory("pano-at-review").toFile()
+        val room = Room.databaseBuilder<PanoDb>(name = File(root, "pano.sqlite").absolutePath)
+            .setDriver(BundledSQLiteDriver()).setQueryCoroutineContext(Dispatchers.IO).build()
+        try {
+            val pending = room.getPendingScrobblesDao()
+            val dao = room.atDeliveryDao()
+            val enrollment = RoomAtEnrollment { dao }
+            val identity = AtIdentity("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa", "https://pds.example.com/")
+            val choices = AtSettings(completed = setOf(AtTarget.TEAL))
+            enrollment.save(AtEnrollment(identity, choices))
+            val authority = AtAuthority(enrollmentStore = enrollment)
+            val scheduled = mutableListOf<Boolean>()
+            val outbox = AtOutbox({ dao }, authority, schedule = { scheduled += it })
+            for (i in 1..2) pending.insertIgnore(PendingScrobble(scrobbleData = ScrobbleData("Artist", "Song $i", "Album", i.toLong(),
+                albumArtist = "Artist", duration = 61000, appId = null), event = ScrobbleEvent.scrobble,
+                services = setOf(AccountType.LASTFM, AccountType.LISTENBRAINZ)))
+            val original = pending.allScrobblesForSubmission(10)
+            val reviewed = outbox.genericPlaysForReview()
+            val (copy, skip) = reviewed
+            assertEquals(AtProblem.CONFLICT, assertFailsWith<AtFailure> {
+                outbox.reviewGenericPlay(copy, identity.did, setOf(AtTarget.ROCKSKY), true)
+            }.problem)
+            outbox.reviewGenericPlay(copy, identity.did, choices.completed, true)
+            assertFailsWith<AtFailure> { outbox.reviewGenericPlay(copy, identity.did, choices.completed, true) }
+            outbox.reviewGenericPlay(skip, identity.did, choices.completed, false)
+            assertEquals(original, pending.allScrobblesForSubmission(10))
+            assertTrue(outbox.genericPlaysForReview().isEmpty())
+            assertEquals(listOf(false), scheduled)
+            val copied = outbox.pending(identity.did).single()
+            assertEquals(copy.scrobbleData.timestamp, copied.playedAt)
+            assertEquals(AtTarget.TEAL.name, copied.target)
+        } finally { room.close(); root.deleteRecursively() }
+    }
     @Test fun firstCommitWithoutResponseAndPartialTargetRetrySurviveRestart(): Unit = runBlocking {
         val root = Files.createTempDirectory("pano-at-outbox").toFile()
         val dbFile = File(root, "room.sqlite")

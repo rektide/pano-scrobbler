@@ -4,6 +4,7 @@ import com.arn.scrobble.api.lastfm.ScrobbleData
 import com.arn.scrobble.db.AtDelivery
 import com.arn.scrobble.db.AtDeliveryDao
 import com.arn.scrobble.db.PanoDb
+import com.arn.scrobble.db.PendingScrobble
 import com.arn.scrobble.work.PendingScrobblesWork
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.*
@@ -35,16 +36,31 @@ internal class AtOutbox(
         val account = authority.enrollment() ?: return false
         val identity = account.identity ?: return false
         if (account.settings.completed.isEmpty()) return false
-        val original = Json.encodeToString(data)
-        val rows = account.settings.completed.map { target ->
-            val payload = try { data.playRecord(target).toString() } catch (_: AtFailure) { null }
-            val canMatch = target == AtTarget.ROCKSKY && account.settings.rockskyMatch && data.canMatchRocksky
-            AtDelivery(identity.did, "", target.name, data.timestamp, original, payload,
-                state = if (payload == null && !canMatch) "METADATA" else "READY")
-        }
+        val rows = deliveries(identity.did, account.settings, data)
         dao().stageEvent(rows, clock() * 1000, tid.clockId)
         schedule(false) // no vault access or AT network on the legacy dispatch path
         return true
+    }
+
+    private fun deliveries(did: String, settings: AtSettings, data: ScrobbleData): List<AtDelivery> {
+        val original = Json.encodeToString(data)
+        return settings.completed.map { target ->
+            val payload = try { data.playRecord(target).toString() } catch (_: AtFailure) { null }
+            val canMatch = target == AtTarget.ROCKSKY && settings.rockskyMatch && data.canMatchRocksky
+            AtDelivery(did, "", target.name, data.timestamp, original, payload,
+                state = if (payload == null && !canMatch) "METADATA" else "READY")
+        }
+    }
+
+    suspend fun genericPlaysForReview() = dao().genericPlaysForReview()
+
+    suspend fun reviewGenericPlay(row: PendingScrobble, did: String, confirmed: Set<AtTarget>, copy: Boolean) {
+        val enrollment = authority.enrollment() ?: throw AtFailure(AtProblem.RECONNECT)
+        checkAt(enrollment.identity?.did == did && enrollment.settings.completed == confirmed, AtProblem.CONFLICT)
+        checkAt(!copy || confirmed.isNotEmpty(), AtProblem.INPUT)
+        val rows = if (copy) deliveries(did, enrollment.settings, row.scrobbleData) else emptyList()
+        checkAt(dao().reviewGenericPlay(row, rows, enrollment.stamp, clock() * 1000, tid.clockId), AtProblem.CONFLICT)
+        if (copy) schedule(false)
     }
 
     /** Returns whether runnable deliveries remain (including those in retry backoff). */

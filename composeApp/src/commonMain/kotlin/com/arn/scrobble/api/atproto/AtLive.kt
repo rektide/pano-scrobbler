@@ -17,6 +17,7 @@ internal class AtLive(
     private val authority: AtAuthority = atAuthority,
     private val dao: () -> AtLiveDao = { PanoDb.db.atLiveDao() },
     private val clock: () -> Long = System::currentTimeMillis,
+    private val public: AtWire = anonymousAt,
 ) {
     private val lock = Mutex()
 
@@ -40,17 +41,19 @@ internal class AtLive(
     }
 
     suspend fun stop(playback: AtPlayback) = lock.withLock {
-        val did = available { authority.enrollment() }?.identity?.did ?: return@withLock
+        val identity = available { authority.enrollment() }?.identity ?: return@withLock
         AtTarget.entries.forEach { target ->
-            available { clear(did, target, playback.token) }
+            available { clear(identity, target, playback.token) }
         }
     }
 
     suspend fun disable(did: String, targets: Set<AtTarget>) = lock.withLock {
-        targets.forEach { target -> available { clear(did, target, null) } }
+        val identity = available { authority.enrollment() }?.identity?.takeIf { it.did == did } ?: return@withLock
+        targets.forEach { target -> available { clear(identity, target, null) } }
     }
 
-    private suspend fun clear(did: String, target: AtTarget, playback: String?) {
+    private suspend fun clear(identity: AtIdentity, target: AtTarget, playback: String?) {
+        val did = identity.did
         val owner = dao().owner(did, target.name) ?: return
         if (playback != null && owner.playback != playback) return
         if (owner.expires <= clock()) {
@@ -60,9 +63,14 @@ internal class AtLive(
         val address = AtAddress(did, target.status, "self")
         val response = authority.write(did, target.status, AtMutation.DELETE,
             address.body { put("swapRecord", owner.cid) }, clearingStatus = true)
-        if (response.ok || response.error in setOf("InvalidSwap", "RecordNotFound"))
+        if (response.ok) {
             dao().forget(did, target.name, owner.cid)
-        else throw AtFailure(if (response.transient) AtProblem.NETWORK else AtProblem.RESPONSE)
+        } else if (response.error in setOf("InvalidSwap", "RecordNotFound") || response.code == 409) {
+            val current = public.record(identity.pds, address)
+            if (current?.ref?.cid != owner.cid) dao().forget(did, target.name, owner.cid)
+            // Never retry delete with a newly read CID; its owner is not this playback.
+            throw AtFailure(AtProblem.CONFLICT)
+        } else throw AtFailure(if (response.transient) AtProblem.NETWORK else AtProblem.RESPONSE)
     }
 
     private suspend fun <T> available(block: suspend () -> T): T? = try { block() }

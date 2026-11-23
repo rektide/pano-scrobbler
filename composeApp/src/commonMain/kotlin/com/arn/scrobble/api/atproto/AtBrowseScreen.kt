@@ -20,7 +20,7 @@ import java.time.ZoneOffset
 
 @Composable
 internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
-    var target by remember { mutableStateOf(AtTarget.TEAL) }
+    var source by remember { mutableStateOf(AtReadSource.TEAL_PDS) }
     var actor by remember { mutableStateOf(defaultDid.orEmpty()) }
     var from by remember { mutableStateOf("") }
     var through by remember { mutableStateOf("") }
@@ -45,6 +45,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     var subject by remember { mutableStateOf<AtRef?>(null) }
     var loved by remember { mutableStateOf<Boolean?>(null) }
     var notice by remember { mutableStateOf<StringResource?>(null) }
+    var catalog by remember { mutableStateOf<AtCatalog?>(null) }
     val scope = rememberCoroutineScope()
 
     fun run(block: suspend () -> Unit) {
@@ -61,11 +62,11 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         }
     }
 
-    fun load(source: AtTarget) = run {
+    fun load(source: AtReadSource) = run {
         val start = from.takeIf(String::isNotBlank)?.let { date(it, false) }
         val end = through.takeIf(String::isNotBlank)?.let { date(it, true) }
         if (start != null && end != null && start >= end) throw java.time.DateTimeException("date range")
-        val resolved = AtHistoryQuery(source, atPublic.resolve(actor), start, end)
+        val resolved = AtHistoryQuery(source.target, atPublic.resolve(actor), start, end, source = source)
         val walk = atPublic.history(resolved)
         content = walk.page(1)
         query = resolved
@@ -80,7 +81,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         if (start == null && end == null) {
             status = try { atPublic.live(resolved) } catch (e: java.io.IOException) { auxError = getString(Res.string.at_live_error); null }
         }
-        profile = try { atPublic.profile(resolved) } catch (e: java.io.IOException) {
+        profile = if (source == AtReadSource.ROCKSKY_PDS) null else try { atPublic.profile(resolved) } catch (e: java.io.IOException) {
             auxError = listOfNotNull(auxError, getString(Res.string.at_profile_error)).joinToString(" "); null
         }
     }
@@ -94,7 +95,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         results = null
         insightPage = 1
         insightWalk = null
-        if (view == AtSection.HISTORY || current.target.limitation(view) != null ||
+        if (view == AtSection.HISTORY || current.limitation(view) != null ||
             (current.target == AtTarget.ROCKSKY && view == AtSection.ACTIVITY && window == AtPeriod.ALL)) return
         run {
             val walk = atPublic.insights(current, view, window)
@@ -103,7 +104,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         }
     }
 
-    LaunchedEffect(defaultDid) { if (!defaultDid.isNullOrEmpty()) load(target) }
+    LaunchedEffect(defaultDid) { if (!defaultDid.isNullOrEmpty()) load(source) }
     LaunchedEffect(status) {
         val expires = status?.expiry ?: return@LaunchedEffect
         kotlinx.coroutines.delay((expires - System.currentTimeMillis()).coerceAtLeast(0))
@@ -111,23 +112,34 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AtTarget.entries.forEach { source ->
-                FilterChip(target == source, onClick = { target = source; if (actor.isNotBlank()) load(source) },
-                    enabled = !busy, label = { Text(source.label) })
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AtReadSource.entries.forEach { tab ->
+                val label = when (tab) {
+                    AtReadSource.TEAL_PDS -> Res.string.at_teal_raw
+                    AtReadSource.ROCKSKY_INDEX -> Res.string.at_rock_index
+                    AtReadSource.ROCKSKY_PDS -> Res.string.at_rock_raw
+                }
+                FilterChip(source == tab, onClick = {
+                    if (source != tab) { source = tab; query = null; content = null; if (actor.isNotBlank()) load(tab) }
+                }, enabled = !busy, label = { Text(stringResource(label)) })
             }
         }
         OutlinedTextField(actor, { actor = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_public_did)) })
         OutlinedTextField(from, { from = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_date_from)) })
         OutlinedTextField(through, { through = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_date_through)) })
-        Button(enabled = !busy && actor.isNotBlank(), onClick = { load(target) }) { Text(stringResource(Res.string.at_refresh)) }
+        Button(enabled = !busy && actor.isNotBlank(), onClick = { load(source) }) { Text(stringResource(Res.string.at_refresh)) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         auxError?.let { Text(it) }
         val loaded = query
         if (loaded != null) {
-            val title = if (loaded.target == AtTarget.TEAL) Res.string.at_teal_history else Res.string.at_rock_history
+            val title = when (loaded.source) {
+                AtReadSource.TEAL_PDS -> Res.string.at_teal_history
+                AtReadSource.ROCKSKY_INDEX -> Res.string.at_rock_history
+                AtReadSource.ROCKSKY_PDS -> Res.string.at_rock_raw_history
+            }
             Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(Res.string.at_identifier, loaded.identity.did))
             profile?.let { p ->
                 ListItem(headlineContent = { Text(p.displayName ?: p.handle ?: loaded.identity.did) },
                     supportingContent = { Text(stringResource(p.source)) }, leadingContent = { AtArtwork(p.avatar) })
@@ -168,23 +180,35 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
                 }
                 }
             } else {
-                if (section in setOf(AtSection.ARTISTS, AtSection.RELEASES, AtSection.ACTIVITY)) {
+                if (section in setOf(AtSection.ARTISTS, AtSection.RELEASES, AtSection.SONGS, AtSection.ACTIVITY) && loaded.limitation(section) == null) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AtPeriod.entries.forEach { window ->
                             FilterChip(window == period, onClick = { loadSection(section, window) }, enabled = !busy, label = { Text(stringResource(window.label)) })
                         }
                     }
                     if (loaded.target == AtTarget.TEAL) Text(stringResource(Res.string.at_teal_ranks))
+                    Text(stringResource(Res.string.at_interval, stringResource(period.label)))
                 }
-                val limitation = loaded.target.limitation(section) ?: Res.string.at_rock_activity
+                val limitation = loaded.limitation(section) ?: Res.string.at_rock_activity
                     .takeIf { loaded.target == AtTarget.ROCKSKY && section == AtSection.ACTIVITY && period == AtPeriod.ALL }
                 limitation?.let { Text(stringResource(it)) }
                 results?.let { result ->
                     if (result.values.isEmpty()) Text(stringResource(Res.string.at_empty_page))
                     result.values.forEach { item ->
-                        ListItem(headlineContent = { Text(item.name) }, supportingContent = { item.detail?.let { Text(it) } },
+                        ListItem(headlineContent = {
+                            Text(if (item.indexedTotal && item.count != null) stringResource(Res.string.at_indexed_plays, item.count) else item.name)
+                        }, supportingContent = {
+                            val count = item.count
+                            when {
+                                item.rank != null && count != null -> Text(stringResource(Res.string.at_plays_rank, item.rank, count))
+                                count != null && !item.indexedTotal -> Text(stringResource(Res.string.at_play_count, count))
+                                else -> item.detail?.let { Text(it) }
+                            }
+                        },
                             leadingContent = { AtArtwork(item.image) }, trailingContent = {
-                                item.actor?.let { did -> TextButton(enabled = !busy, onClick = { actor = did; load(target) }) { Text(stringResource(Res.string.at_browse_actor)) } }
+                                item.actor?.let { did -> TextButton(enabled = !busy, onClick = { actor = did; load(source) }) { Text(stringResource(Res.string.at_browse_actor)) } }
+                                if (loaded.source == AtReadSource.ROCKSKY_INDEX && catalogEndpoint(item.id) != null)
+                                    TextButton(enabled = !busy, onClick = { run { catalog = atPublic.catalog(item.id) } }) { Text(stringResource(Res.string.at_catalog)) }
                             })
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -198,12 +222,17 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     }
     val current = query
     val item = selected
-    if (current != null && item != null && confirmDelete == null) {
+    if (current != null && item != null && confirmDelete == null && catalog == null) {
         val member = actionAccount?.takeIf { it.identity?.did == current.identity.did && it.method != null }
         val deleteEnabled = current.target in member?.settings?.delete.orEmpty() && member?.missing?.get(current.target.play)?.contains("delete") != true
         val likesEnabled = member?.settings?.likes == true && member.missing[ROCKSKY_LIKE].isNullOrEmpty()
         AlertDialog(onDismissRequest = { selected = null }, title = { Text(item.title) }, text = {
             Column {
+                Text(stringResource(Res.string.at_identifier, item.id))
+                item.ref?.let { Text(it.cid) }
+                item.catalogUri?.takeIf { catalogEndpoint(it) != null }?.let { uri ->
+                    TextButton(enabled = !busy, onClick = { run { catalog = atPublic.catalog(uri) } }) { Text(stringResource(Res.string.at_catalog)) }
+                }
                 if (!deleteEnabled) Text(stringResource(Res.string.at_delete_disabled))
                 else Button(enabled = !busy, onClick = { run { confirmDelete = atActions.ownRecord(current, item) } }) { Text(stringResource(Res.string.at_delete_review, current.target.label)) }
                 when {
@@ -223,6 +252,19 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
                 error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             }
         }, confirmButton = { TextButton(onClick = { selected = null }) { Text(stringResource(Res.string.at_done)) } })
+    }
+    catalog?.let { detail ->
+        AlertDialog(onDismissRequest = { catalog = null }, title = { Text(detail.title) }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AtArtwork(detail.image)
+                Text(stringResource(Res.string.at_rock_index))
+                detail.artist?.let { Text(it) }
+                detail.album?.let { Text(it) }
+                Text(stringResource(Res.string.at_identifier, detail.uri))
+                detail.mbid?.let { Text("MBID: $it") }
+                detail.isrc?.let { Text("ISRC: $it") }
+            }
+        }, confirmButton = { TextButton(onClick = { catalog = null }) { Text(stringResource(Res.string.at_done)) } })
     }
     confirmDelete?.let { ref ->
         if (current != null) AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text(stringResource(Res.string.at_delete_confirm, current.target.label)) }, text = {

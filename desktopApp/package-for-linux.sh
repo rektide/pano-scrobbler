@@ -68,7 +68,7 @@ cp "$pngIconPath" "$appDir/.DirIcon"
 # Desktop file
 desktopFile="$libExecDir/$appNameWithoutSpaces.desktop"
 sed -i -e "s/^Icon=.*/Icon=$appNameWithoutSpaces-appimage/" "$desktopFile"
-sed -e "s/^Exec=.*/Exec=AppRun %U/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
+sed -e "s/^Exec=.*/Exec=AppRun %u/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
 install -d "$appDir/usr/share/applications/"
 mv "$desktopFile" "$appDir/usr/share/applications/"
 

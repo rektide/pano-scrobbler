@@ -4,6 +4,8 @@ import com.arn.scrobble.api.atproto.*
 import com.arn.scrobble.api.lastfm.ScrobbleData
 import com.arn.scrobble.db.AtEnrollment
 import com.arn.scrobble.db.AtEnrollmentStore
+import com.arn.scrobble.db.AtLiveDao
+import com.arn.scrobble.db.AtLiveOwner
 import com.arn.scrobble.work.AtDeliveryWorker
 import com.arn.scrobble.work.CommonWorkerResult
 import com.arn.scrobble.work.getWorker
@@ -30,6 +32,157 @@ import kotlin.concurrent.thread
 import kotlin.test.*
 
 class AtProtocolTest {
+    @Test fun publicHistoryDistinguishesSourcePaginationSparseAndUnavailable(): Unit = runBlocking {
+        val cid = "bafyreigqm2p2dftaihocdoxneyk7x6j5iijmahh2c7apug47zrhb6tdd3u"
+        val identity = AtIdentity(DID, "https://pds.example.com/")
+        val collection = AtTarget.ROCKSKY.play
+        var outage = false
+        var insertAtHead = false
+        Loopback { req ->
+            check(req.headers.none { it.startsWith("Authorization:", ignoreCase = true) })
+            val url = ("http://fixture.invalid" + req.path).toHttpUrl()
+            fun uri(i: Int) = "at://$DID/$collection/r$i"
+            val time = java.time.Instant.ofEpochMilli(NOW).toString()
+            when (url.encodedPath.substringAfterLast('/')) {
+                "com.atproto.repo.listRecords" -> {
+                    check(url.queryParameter("collection") == collection)
+                    val cursor = url.queryParameter("cursor")
+                    val (range, next) = when (cursor) {
+                        null -> (1..50) to "opaque-b"
+                        "opaque-b" -> (51..100) to "opaque-c"
+                        "opaque-c" -> (101..107) to null
+                        else -> error("unknown continuation")
+                    }
+                    val rows = range.joinToString(",") { i ->
+                        val played = if (i == 78) java.time.Instant.ofEpochMilli(NOW + 86_400_000).toString() else time
+                        """{"uri":"${uri(i)}","cid":"$cid","value":{"${'$'}type":"$collection","title":"Song $i","artist":"Artist","createdAt":"$played"}}"""
+                    }
+                    Reply(200, """{"records":[$rows]${next?.let { ",\"cursor\":\"$it\"" }.orEmpty()}}""")
+                }
+                "app.rocksky.actor.getActorScrobbles" -> {
+                    if (outage) return@Loopback Reply(503, "{}")
+                    val offset = url.queryParameter("offset")!!.toInt()
+                    val rows = (if (insertAtHead) listOf(108) + (1..107) else (1..107).toList()).drop(offset).take(50).joinToString(",") { i ->
+                        """{"did":"$DID","uri":"${uri(i)}","title":"Song $i","artist":"Artist","createdAt":"$time"}"""
+                    }
+                    Reply(200, """{"scrobbles":[$rows]}""")
+                }
+                "app.rocksky.actor.getActorSongs" -> {
+                    check(url.queryParameter("startDate") != null && url.queryParameter("endDate") != null)
+                    Reply(200, """{"tracks":[{"uri":"at://$DID/app.rocksky.song/song-1","title":"Chart song","playCount":8}]}""")
+                }
+                "app.rocksky.song.getSong" -> {
+                    val key = "at://$DID/app.rocksky.song/song-1"
+                    check(url.queryParameterNames == setOf("uri") && url.queryParameter("uri") == key)
+                    Reply(200, """{"uri":"$key","title":"Catalog song","artist":"Artist"}""")
+                }
+                else -> error("unexpected ${req.path}")
+            }
+        }.use { server ->
+            val api = AtPublic(server.wire(true), { identity })
+            val indexed = AtHistoryQuery(AtTarget.ROCKSKY, identity, null, null)
+            val raw = indexed.copy(source = AtReadSource.ROCKSKY_PDS)
+            val pages = api.history(raw)
+            assertEquals(listOf(50, 50, 7), (1..3).map { pages.page(it).values.size })
+            assertNull(pages.page(3).next)
+            assertEquals(emptyList(), pages.page(4).values)
+            val sparse = api.history(raw.copy(from = NOW + 1))
+            assertEquals(emptyList(), sparse.page(1).values)
+            assertNotNull(sparse.page(1).next)
+            assertEquals("Song 78", sparse.page(2).values.single().title)
+            assertEquals(AtProblem.UNSUPPORTED, assertFailsWith<AtFailure> { api.insights(raw, AtSection.SONGS, AtPeriod.WEEK).page(1) }.problem)
+            val offset = api.history(indexed)
+            val first = offset.page(1)
+            insertAtHead = true
+            val later = offset.page(2)
+            assertEquals(49, later.values.size)
+            assertTrue(first.values.map { it.id }.toSet().intersect(later.values.map { it.id }.toSet()).isEmpty())
+            assertEquals("Song 108", offset.page(1, refresh = true).values.first().title)
+            outage = true
+            assertEquals(AtProblem.NETWORK, assertFailsWith<AtFailure> { api.history(indexed).page(1) }.problem)
+            val song = api.insights(indexed, AtSection.SONGS, AtPeriod.WEEK, NOW).page(1).values.single()
+            assertEquals("Chart song", song.name)
+            assertEquals(8L, song.count)
+            assertEquals("Catalog song", api.catalog(song.id).title)
+            val unsupportedCalls = server.requests.size
+            assertFailsWith<AtFailure> { api.catalog("at://$DID/$collection/r1") }
+            assertEquals(unsupportedCalls, server.requests.size)
+        }
+    }
+
+    @Test fun statusLateStopAndSecondDeviceCannotDeleteReplacement(): Unit = runBlocking {
+        val root = Files.createTempDirectory("at-live-fixture").toFile()
+        val cidA = "bafyreigqm2p2dftaihocdoxneyk7x6j5iijmahh2c7apug47zrhb6tdd3u"
+        val cidB = "bafyreigml4bzz2oepwteezakxaoka6zqbzvbe2x2flxj7yqkmbob5w6gw4"
+        val target = AtTarget.TEAL
+        val identity = AtIdentity(DID, "https://pds.example.com/")
+        val uri = "at://$DID/${target.status}/self"
+        var current: Pair<String, kotlinx.serialization.json.JsonObject>? = null
+        var writes = 0
+        val swaps = mutableListOf<String>()
+        var rereads = 0
+        try {
+            Loopback { req ->
+                when (req.path.substringBefore('?').substringAfterLast('/')) {
+                    "com.atproto.server.createSession" -> Reply(200, passwordTokens("live"))
+                    "com.atproto.repo.putRecord" -> {
+                        val body = Json.parseToJsonElement(req.body).jsonObject
+                        val cid = if (++writes % 2 == 1) cidA else cidB
+                        current = cid to body.obj("record")!!
+                        Reply(200, """{"uri":"$uri","cid":"$cid"}""")
+                    }
+                    "com.atproto.repo.deleteRecord" -> {
+                        val cid = Json.parseToJsonElement(req.body).jsonObject.text("swapRecord")!!
+                        swaps += cid
+                        if (cid != current?.first) Reply(400, """{"error":"InvalidSwap"}""")
+                        else { current = null; Reply(200, "{}") }
+                    }
+                    "com.atproto.repo.getRecord" -> {
+                        check(req.headers.none { it.startsWith("Authorization:", ignoreCase = true) })
+                        rereads++
+                        current?.let { (cid, record) -> Reply(200, """{"uri":"$uri","cid":"$cid","value":$record}""") }
+                            ?: Reply(404, """{"error":"RecordNotFound"}""")
+                    }
+                    else -> error("unexpected ${req.path}")
+                }
+            }.use { server ->
+                val wire = server.wire(true)
+                fun auth(name: String): AtAuthority {
+                    val dir = File(root, name).apply { mkdir() }
+                    return AtAuthority(AtVault { DiskFixture(dir) }, wire, wire, { identity }, { NOW }, {}, EnrollmentFixture())
+                }
+                val ownerA = auth("device-A")
+                val ownerB = auth("device-B")
+                for (account in listOf(ownerA, ownerB)) account.appPassword(DID, "test-test-test-test", AtSettings(live = setOf(target)), false)
+                fun db() = object : AtLiveDao {
+                    var row: AtLiveOwner? = null
+                    override suspend fun owner(did: String, target: String) = row
+                    override suspend fun set(owner: AtLiveOwner) { row = owner }
+                    override suspend fun forget(did: String, target: String, cid: String) { if (row?.cid == cid) row = null }
+                }
+                val aDb = db(); val bDb = db()
+                val a = AtLive(ownerA, { aDb }, { NOW }, wire)
+                val b = AtLive(ownerB, { bDb }, { NOW }, wire)
+                val playbackA = AtPlayback("a", 1, NOW)
+                val playbackB = AtPlayback("b", 2, NOW)
+                a.start(playbackA, listen) { true }
+                a.start(playbackA, listen) { true }
+                b.start(playbackB, listen.copy(track = "Replacement")) { true }
+                a.stop(playbackA)
+                assertEquals(listOf(cidA), swaps)
+                assertEquals(1, rereads)
+                assertEquals(cidB, current?.first)
+                assertEquals(AtProblem.CONFLICT, ownerA.notices.value)
+                assertNull(aDb.owner(DID, target.name))
+                b.stop(playbackA) // late event must not even try to delete the newer playback
+                assertEquals(1, swaps.size)
+                b.stop(playbackB)
+                assertEquals(listOf(cidA, cidB), swaps)
+                assertNull(current)
+                assertEquals(2, writes)
+            }
+        } finally { root.deleteRecursively() }
+    }
     private class EnrollmentFixture : AtEnrollmentStore {
         private var value: AtEnrollment? = null
         override suspend fun read() = value

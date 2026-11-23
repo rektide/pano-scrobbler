@@ -31,6 +31,8 @@ import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.PanoNativeComponents
+import com.arn.scrobble.api.atproto.atAuthority
+import com.arn.scrobble.api.atproto.atOutbox
 import com.arn.scrobble.automation.Automation
 import com.arn.scrobble.billing.LicenseState
 import com.arn.scrobble.db.PanoDb
@@ -55,7 +57,10 @@ import com.arn.scrobble.utils.Stuff.stateInWithCache
 import com.arn.scrobble.utils.VariantStuff
 import com.arn.scrobble.utils.setAppLocale
 import com.arn.scrobble.work.DesktopWorkManager
+import com.arn.scrobble.work.PendingScrobblesWork
 import com.arn.scrobble.work.UpdaterWork
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
@@ -177,6 +182,7 @@ private fun preventMultipleInstances() {
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
+    if (handleDesktopAtCallback(args, ::completeDesktopAtCallback)) exitProcess(0)
     val cmdlineArgs = DesktopStuff.parseCmdlineArgs(args)
     DesktopStuff.setSystemProperties()
     PanoNativeComponents.load()
@@ -432,6 +438,22 @@ fun main(args: Array<String>) {
             // this app runs at startup, so wait for an internet connection
             delay(1.minutes)
             UpdaterWork.schedule(true)
+        }
+    }
+
+    // A browser may have completed login in a callback-only process after this UI started.
+    // Observe only the nonsecret enrollment stamp; the worker opens the vault only if needed.
+    Stuff.appScope.launch(Dispatchers.IO) {
+        var previous: String? = null
+        while (true) {
+            try {
+                val stamp = atAuthority.enrollment()?.stamp
+                if (stamp != previous && atOutbox.hasRunnable())
+                    PendingScrobblesWork.scheduleAtDelivery(force = false)
+                previous = stamp
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* retry on next observation */ }
+            delay(3000)
         }
     }
 

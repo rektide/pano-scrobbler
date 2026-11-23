@@ -31,6 +31,7 @@ internal enum class AtProblem(val message: StringResource) {
     RESPONSE(Res.string.at_problem_response),
     CONFLICT(Res.string.at_problem_conflict),
     INPUT(Res.string.at_problem_input),
+    UNSUPPORTED(Res.string.at_problem_unsupported),
 }
 
 internal class AtFailure(val problem: AtProblem) : IOException(problem.name)

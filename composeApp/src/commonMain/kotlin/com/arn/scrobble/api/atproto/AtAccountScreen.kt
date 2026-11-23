@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.arn.scrobble.utils.PlatformStuff
+import com.arn.scrobble.db.PendingScrobble
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
@@ -33,6 +34,7 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var allowFile by remember { mutableStateOf(false) }
     var confirmDisconnect by remember { mutableStateOf(false) }
+    var legacy by remember { mutableStateOf<List<PendingScrobble>?>(null) }
     val scope = rememberCoroutineScope()
     val changed by atAuthority.changed.collectAsState()
     val notices by atAuthority.notices.collectAsState()
@@ -61,13 +63,14 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
         // A missing POSIX vault before first opt-in is normal.
         try { reload() } catch (e: AtFailure) { error = e.problem.message }
     }
-    LaunchedEffect(account?.identity?.did) {
-        val did = account?.identity?.did ?: return@LaunchedEffect
+    LaunchedEffect(account?.identity?.did, account?.waiting) {
+        if (account?.identity == null && account?.waiting != true) return@LaunchedEffect
         while (true) {
             kotlinx.coroutines.delay(3000)
             try {
                 val renewed = atAuthority.account()
-                if (renewed.identity?.did == did) account = renewed
+                if (renewed.identity != account?.identity || renewed.settings != account?.settings) reload()
+                else account = renewed
             } catch (e: AtFailure) { error = e.problem.message }
         }
     }
@@ -125,6 +128,7 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
         if (account?.waiting == true) {
             Text(stringResource(Res.string.at_browser_waiting))
             if (PlatformStuff.isDesktop) {
+                Text(stringResource(Res.string.at_callback_desktop_help))
                 OutlinedTextField(callback, { callback = it }, label = { Text(stringResource(Res.string.at_callback_url)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation())
                 Button(enabled = !busy && callback.isNotBlank(), onClick = {
@@ -144,6 +148,25 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
         }) { Text(stringResource(Res.string.at_password_use)) }
         if (identity != null) {
             AtPendingList(identity.did, changed, onRetry = { run { atOutbox.retry(identity.did) } })
+            val reviewRows = legacy
+            OutlinedButton(enabled = !busy, onClick = { run { legacy = atOutbox.genericPlaysForReview() } }) {
+                Text(stringResource(Res.string.at_review_legacy))
+            }
+            if (reviewRows != null) {
+                Text(stringResource(Res.string.at_review_explain, identity.did, settings.completed.joinToString { it.label }))
+                if (reviewRows.isEmpty()) Text(stringResource(Res.string.at_review_empty))
+                reviewRows.forEach { row ->
+                    Text("${row.scrobbleData.artist} · ${row.scrobbleData.track} · ${java.time.Instant.ofEpochMilli(row.scrobbleData.timestamp)}")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = !busy && settings.completed.isNotEmpty(), onClick = {
+                            run { atOutbox.reviewGenericPlay(row, identity.did, settings.completed, true); legacy = atOutbox.genericPlaysForReview() }
+                        }) { Text(stringResource(Res.string.at_review_copy)) }
+                        TextButton(enabled = !busy, onClick = {
+                            run { atOutbox.reviewGenericPlay(row, identity.did, settings.completed, false); legacy = atOutbox.genericPlaysForReview() }
+                        }) { Text(stringResource(Res.string.at_review_skip)) }
+                    }
+                }
+            }
         }
         if (identity != null) OutlinedButton(enabled = !busy, onClick = { confirmDisconnect = true }) { Text(stringResource(Res.string.at_disconnect)) }
     }

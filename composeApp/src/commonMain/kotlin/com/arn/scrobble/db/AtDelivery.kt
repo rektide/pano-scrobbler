@@ -27,6 +27,22 @@ data class AtDelivery(
 
 @Dao
 interface AtDeliveryDao {
+    @Query("SELECT * FROM PendingScrobbles WHERE event = 'scrobble' AND _id NOT IN (SELECT pendingId FROM AtLegacyReviews) ORDER BY timestamp DESC, _id DESC LIMIT 20")
+    suspend fun genericPlaysForReview(): List<PendingScrobble>
+
+    @Query("SELECT * FROM PendingScrobbles WHERE event = 'scrobble' AND _id = :id AND _id NOT IN (SELECT pendingId FROM AtLegacyReviews)")
+    suspend fun unreviewedPlay(id: Long): PendingScrobble?
+
+    @Insert suspend fun markReviewed(review: AtLegacyReview)
+
+    @Transaction
+    suspend fun reviewGenericPlay(original: PendingScrobble, rows: List<AtDelivery>, stamp: String, micros: Long, clockId: Int): Boolean {
+        if (unreviewedPlay(original._id)?.scrobbleData != original.scrobbleData || enrollment()?.stamp != stamp) return false
+        if (rows.isNotEmpty()) stageEvent(rows, micros, clockId)
+        markReviewed(AtLegacyReview(original._id, rows.firstOrNull()?.did))
+        return true
+    }
+
     @Insert
     suspend fun stage(deliveries: List<AtDelivery>)
 

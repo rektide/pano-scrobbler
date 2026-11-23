@@ -77,7 +77,7 @@ object DesktopStuff {
                 }
 
                 else -> {
-                    println("Unknown argument ignored: ${args[index]}")
+                    println("Unknown argument ignored")
                 }
             }
             index++
@@ -199,8 +199,7 @@ object DesktopStuff {
         val desktopSrc = File(appDir, "usr/share/applications/$appNameWithoutSpaces.desktop")
         val desktopDest = File(dataHome, "applications/$appNameWithoutSpaces.desktop")
         desktopDest.parentFile.mkdirs()
-        val desktopContent = desktopSrc.readText()
-            .replace(Regex("^Exec=.*$", RegexOption.MULTILINE), "Exec=\"$appImagePath\" %U")
+        val desktopContent = appImageLauncher(desktopSrc.readText(), appImagePath)
         desktopDest.writeText(desktopContent)
     }
 
@@ -215,7 +214,8 @@ object DesktopStuff {
         if (!desktopDest.exists()) return
 
         val desktopContent = desktopDest.readText()
-        if (appImagePath in desktopContent && "Icon=$appNameWithoutSpaces\n" in desktopContent)
+        if (appImagePath in desktopContent && ("Icon=$appNameWithoutSpaces\n" in desktopContent ||
+                "x-scheme-handler/io.github.kawaiidango;" !in desktopContent))
             addAppImageToAppLauncher()
     }
 
@@ -235,4 +235,22 @@ object DesktopStuff {
             else -> appId
         }
     }
+}
+
+/** Desktop entry escaping precedes Exec argument escaping; percent doubles literal field codes. */
+internal fun appImageLauncher(entry: String, path: String): String {
+    require(path.none { it.isISOControl() })
+    val quoted = buildString {
+        append('"')
+        path.forEach { c ->
+            when (c) {
+                '%' -> append("%%")
+                '\\' -> append("\\\\\\\\")
+                '"', '`', '$' -> append("\\\\").append(c)
+                else -> append(c)
+            }
+        }
+        append('"')
+    }
+    return entry.replace(Regex("^Exec=.*$", RegexOption.MULTILINE)) { "Exec=$quoted %u" }
 }

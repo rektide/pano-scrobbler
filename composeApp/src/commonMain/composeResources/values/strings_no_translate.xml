@@ -96,6 +96,22 @@
     <string name="at_indexed_plays" translatable="false">%1$d indexed plays</string>
     <string name="at_play_count" translatable="false">%1$d plays</string>
     <string name="at_rock_profile" translatable="false">Rocksky profile</string>
+    <string name="at_problem_unsupported" translatable="false">This feature is unavailable for the selected source.</string>
+    <string name="at_rock_index" translatable="false">Rocksky index</string>
+    <string name="at_rock_raw" translatable="false">Rocksky raw PDS</string>
+    <string name="at_teal_raw" translatable="false">Teal PDS</string>
+    <string name="at_rock_raw_history" translatable="false">Rocksky · raw scrobble records from this account’s PDS (not the Rocksky index)</string>
+    <string name="at_raw_history_only" translatable="false">Raw PDS browsing shows repository history only. Choose Rocksky index for charts, loves and follows.</string>
+    <string name="at_section_songs" translatable="false">Songs</string>
+    <string name="at_catalog" translatable="false">Rocksky catalog details</string>
+    <string name="at_identifier" translatable="false">ID: %1$s</string>
+    <string name="at_interval" translatable="false">Interval: %1$s</string>
+    <string name="at_callback_desktop_help" translatable="false">If your browser does not return to Pano, copy the complete callback URL below. Portable and custom profiles may need this step.</string>
+    <string name="at_review_legacy" translatable="false">Review generic pending plays</string>
+    <string name="at_review_explain" translatable="false">These plays have no verified DID owner. Copy only your own plays to %1$s (%2$s). Copy and Skip both leave the original queue unchanged.</string>
+    <string name="at_review_empty" translatable="false">No unreviewed generic pending plays.</string>
+    <string name="at_review_copy" translatable="false">Copy to AT Protocol</string>
+    <string name="at_review_skip" translatable="false">Skip</string>
     <string name="at_public_profile" translatable="false">Public AT account profile (Bluesky)</string>
     <!-- DO NOT TRANSLATE -->
     <string name="spotify" translatable="false">Spotify</string>
