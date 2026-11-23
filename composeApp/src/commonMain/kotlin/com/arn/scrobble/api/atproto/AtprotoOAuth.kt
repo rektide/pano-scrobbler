@@ -16,6 +16,7 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.net.URI
 import java.net.URLDecoder
 import java.security.MessageDigest
@@ -25,8 +26,6 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
 const val ATPROTO_CLIENT_ID = "https://rektide.github.io/pano-scrobbler/oauth-client-metadata.json"
 const val ATPROTO_REDIRECT_URI = "io.github.rektide:/pano-scrobbler/oauth/callback"
@@ -53,21 +52,39 @@ class AtprotoOAuthSession(
     val dpop: AtprotoOAuthDpop,
 ) : AtprotoSession
 
-/** Holds the browser URL and the pending in-memory sign-in. */
-class AtprotoOAuthSignIn(
+/** The short-lived material needed to finish one authorization, even after process death. */
+@Serializable
+internal class AtprotoOAuthAttempt(
     val authorizationUrl: String,
-    private val issuer: String,
-    private val state: String,
-    private val deadline: TimeMark,
+    val issuer: String,
+    val tokenEndpoint: String,
+    val state: String,
+    val createdAt: Instant,
+    val expiresAt: Instant,
+    val did: String,
+    val pds: String,
+    val handle: String,
+    val permissions: Set<AtprotoOAuthPermission>,
+    val verifier: String,
+    val dpop: AtprotoOAuthDpop,
+) {
+    fun isActive(now: Instant = Clock.System.now()) = now >= createdAt && now < expiresAt
+}
+
+class AtprotoOAuthSignIn internal constructor(
+    internal val attempt: AtprotoOAuthAttempt,
     exchange: suspend (String) -> AtprotoOAuthSession,
 ) {
+    val authorizationUrl get() = attempt.authorizationUrl
     private val pending = AtomicReference<suspend (String) -> AtprotoOAuthSession>(exchange)
 
     /**
      * Checks the exact redirect URI, state and issuer before accepting a callback.
      * It consumes the pending exchange atomically before any network call, so even a denial or a failed exchange cannot be reused.
      */
-    suspend fun complete(callbackUrl: String): AtprotoOAuthSession {
+    suspend fun complete(callbackUrl: String): AtprotoOAuthSession = complete(callbackUrl) { true }
+
+    internal suspend fun complete(callbackUrl: String, consume: suspend () -> Boolean): AtprotoOAuthSession {
         val invalid = "Invalid AT Protocol OAuth callback"
         val uri = callbackUrl.takeIf { it.length <= 16 * 1024 }?.let(::parseOAuthUri)
         val query = uri?.rawQuery
@@ -81,8 +98,8 @@ class AtprotoOAuthSignIn(
         } catch (_: IllegalArgumentException) {
             throw ApiException(-1, invalid)
         }
-        if (parameters["state"]?.singleOrNull() != state ||
-            parameters["iss"]?.singleOrNull() != issuer
+        if (parameters["state"]?.singleOrNull() != attempt.state ||
+            parameters["iss"]?.singleOrNull() != attempt.issuer
         ) throw ApiException(-1, invalid)
 
         val code = parameters["code"]
@@ -91,7 +108,8 @@ class AtprotoOAuthSignIn(
         if (value.isNullOrBlank() || value.any { it.isISOControl() }) throw ApiException(-1, invalid)
         // Consume before doing I/O, even on denial, cancellation or a failed exchange.
         val exchange = pending.getAndSet(null)
-        if (exchange == null || deadline.hasPassedNow()) throw ApiException(-1, "AT Protocol OAuth attempt has expired or already finished")
+        if (exchange == null || !attempt.isActive() || !consume())
+            throw ApiException(-1, "AT Protocol OAuth attempt has expired or already finished")
         if (error != null) throw ApiException(-1, "AT Protocol authorization was not granted")
         return exchange(value)
     }
@@ -102,7 +120,7 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
 
     /**
      * Resolves the account and pushes the authorization request before returning a browser URL that points to it.
-     * The browser gets a request reference instead of the form, and Pano keeps the PKCE verifier in memory to prove it started the request when exchanging the code.
+     * The browser gets a request reference instead of the form; the PKCE verifier stays in Pano.
      * See the [AT Protocol OAuth profile](https://atproto.com/specs/oauth).
      */
     suspend fun start(handle: String, permissions: Set<AtprotoOAuthPermission>): AtprotoOAuthSignIn =
@@ -148,40 +166,45 @@ class AtprotoOAuth(private val baseClient: () -> HttpClient) {
             .addQueryParameter("client_id", ATPROTO_CLIENT_ID)
             .addQueryParameter("request_uri", par.requestUri)
             .build().toString()
-        val deadline = TimeSource.Monotonic.markNow() + par.expiresIn.coerceAtMost(600L).seconds
-        return AtprotoOAuthSignIn(browserUrl, server.issuer, state, deadline) { code ->
-            client().use { exchange(it, server, dpop, identity, scopes, verifier, code) }
+        val now = Clock.System.now()
+        return resume(AtprotoOAuthAttempt(browserUrl, server.issuer, server.token.toString(), state,
+            now, now + par.expiresIn.coerceAtMost(600L).seconds, identity.did, identity.pds,
+            loginHint, permissions, verifier, dpop))
+    }
+
+    internal fun resume(attempt: AtprotoOAuthAttempt): AtprotoOAuthSignIn = AtprotoOAuthSignIn(attempt) { code ->
+        val tokenEndpoint = attempt.tokenEndpoint.toHttpUrl()
+        require(tokenEndpoint.isHttps && tokenEndpoint.oauthOrigin() == attempt.issuer)
+        client().use {
+            exchange(it, tokenEndpoint, attempt, code)
         }
     }
 
     private suspend fun exchange(
         client: HttpClient,
-        server: AtprotoOAuthServer,
-        dpop: AtprotoOAuthDpop,
-        identity: AtprotoIdentity,
-        scopes: List<String>,
-        verifier: String,
+        tokenEndpoint: HttpUrl,
+        attempt: AtprotoOAuthAttempt,
         code: String,
     ): AtprotoOAuthSession {
-        val token = client.oauthPost(server.token, dpop, AtprotoTokenResponse.serializer(), listOf(
+        val token = client.oauthPost(tokenEndpoint, attempt.dpop, AtprotoTokenResponse.serializer(), listOf(
             "client_id" to ATPROTO_CLIENT_ID,
             "grant_type" to "authorization_code",
             "redirect_uri" to ATPROTO_REDIRECT_URI,
             "code" to code,
-            "code_verifier" to verifier,
+            "code_verifier" to attempt.verifier,
         ))
         val receivedAt = Clock.System.now()
-        if (token.subject != identity.did || !token.tokenType.equals("DPoP", ignoreCase = true) ||
+        if (token.subject != attempt.did || !token.tokenType.equals("DPoP", ignoreCase = true) ||
             token.expiresIn <= 0 || !token.accessToken.isOAuthCredential() ||
             token.refreshToken?.isOAuthCredential() == false
         ) throw ApiException(-1, "Invalid AT Protocol OAuth token response")
 
         val granted = token.scope.split(' ').map(::canonicalScope).toSet()
-        if (granted != scopes.map(::canonicalScope).toSet())
+        if (granted != (listOf("atproto") + attempt.permissions.map { it.scope }).map(::canonicalScope).toSet())
             throw ApiException(-1, "AT Protocol did not grant the selected permissions")
-        return AtprotoOAuthSession(identity.did, identity.pds, server.issuer, ATPROTO_CLIENT_ID,
+        return AtprotoOAuthSession(attempt.did, attempt.pds, attempt.issuer, ATPROTO_CLIENT_ID,
             granted, receivedAt + token.expiresIn.seconds,
-            token.accessToken, token.refreshToken, dpop)
+            token.accessToken, token.refreshToken, attempt.dpop)
     }
 }
 

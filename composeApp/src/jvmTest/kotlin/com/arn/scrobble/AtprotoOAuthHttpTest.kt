@@ -4,6 +4,8 @@ import com.arn.scrobble.api.atproto.ATPROTO_CLIENT_ID
 import com.arn.scrobble.api.atproto.ATPROTO_REDIRECT_URI
 import com.arn.scrobble.api.atproto.AtprotoIdentity
 import com.arn.scrobble.api.atproto.AtprotoOAuth
+import com.arn.scrobble.api.atproto.AtprotoOAuthAttempts
+import com.arn.scrobble.api.atproto.AtprotoOAuthAttempt
 import com.arn.scrobble.api.atproto.AtprotoOAuthPermission
 import com.arn.scrobble.api.lastfm.ApiException
 import com.nimbusds.jose.JWSAlgorithm
@@ -19,12 +21,17 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.http.formUrlEncode
 import io.ktor.http.parseQueryString
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import kotlin.io.path.createTempDirectory
 import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
@@ -45,6 +52,52 @@ class AtprotoOAuthHttpTest {
             assertEquals("/${fixture.identity.did}", fixture.requests[1].path)
             assertEquals("alice.example", fixture.posts("/par").single().form["login_hint"])
             assertEquals(fixture.identity.did, pending.complete(fixture.callback()).did)
+        }
+    }
+
+    @Test
+    fun resumesAfterReopeningPendingFileAndConsumesOnlyMatchingCallback() = runBlocking {
+        val directory = createTempDirectory().toFile()
+        val file = directory.resolve("pending.json")
+        try {
+            Fixture().use { fixture ->
+                val first = fixture.start(setOf(AtprotoOAuthPermission.ROCKSKY_SCROBBLES))
+                val originalKey = fixture.posts("/par").single().proof.header.jwk
+                val oldJob = Job()
+                try {
+                    AtprotoOAuthAttempts(file, CoroutineScope(Dispatchers.IO + oldJob)).save(first.attempt)
+                } finally {
+                    oldJob.cancelAndJoin()
+                }
+                val newJob = Job()
+                try {
+                    val store = AtprotoOAuthAttempts(file, CoroutineScope(Dispatchers.IO + newJob))
+                    val attempt = requireNotNull(store.load())
+                    assertEquals(first.authorizationUrl, attempt.authorizationUrl)
+                    assertEquals("alice.example", attempt.handle)
+                    assertEquals(setOf(AtprotoOAuthPermission.ROCKSKY_SCROBBLES), attempt.permissions)
+                    assertFailsWith<ApiException> {
+                        fixture.resume(attempt).complete(fixture.callback(iss = fixture.pds)) { store.consume(attempt.state) }
+                    }
+                    assertEquals(attempt.state, store.load()?.state)
+                    assertTrue(fixture.posts("/token").isEmpty())
+                    fixture.challengeToken = true
+                    val callback = fixture.callback()
+                    val session = fixture.resume(attempt).complete(callback) { store.consume(attempt.state) }
+                    assertEquals(fixture.identity.did, session.did)
+                    assertNull(store.load())
+                    assertTrue(fixture.posts("/token").all { it.proof.header.jwk == originalKey })
+                    assertFailsWith<ApiException> {
+                        fixture.resume(attempt).complete(callback) { store.consume(attempt.state) }
+                    }
+                    assertEquals(2, fixture.posts("/token").size)
+                    assertTrue("controlled-code" !in file.readText())
+                } finally {
+                    newJob.cancelAndJoin()
+                }
+            }
+        } finally {
+            directory.deleteRecursively()
         }
     }
 
@@ -257,6 +310,8 @@ class AtprotoOAuthHttpTest {
         suspend fun start(permissions: Set<AtprotoOAuthPermission> = emptySet()) = oauth.start("alice.example", permissions)
 
         suspend fun startFromHandle(handle: String) = oauth.start(handle, emptySet())
+
+        fun resume(attempt: AtprotoOAuthAttempt) = oauth.resume(attempt)
 
         fun posts(path: String) = requests.filter { it.path == path && it.method == "POST" }
 

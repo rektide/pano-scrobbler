@@ -74,6 +74,8 @@ actual object PlatformStuff {
 
     actual val cacheDir by lazy { applicationContext.cacheDir!! }
 
+    actual val noBackupFilesDir by lazy { applicationContext.noBackupFilesDir!! }
+
     actual val logsDir by lazy { File(filesDir, "logs").also { it.mkdirs() } }
 
     actual fun getDeviceIdentifier(): String {
