@@ -8,9 +8,7 @@ import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.content.OutgoingContent
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.ByteReadChannel
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 
@@ -36,7 +34,7 @@ private class CreateSessionResponse(
 suspend fun signInWithAppPassword(handle: String, password: String): AtprotoAppPasswordSession =
     resolveAtprotoHandle(handle).signInWithAppPassword(password, Requesters.baseKtorClient)
 
-internal suspend fun AtprotoIdentity.signInWithAppPassword(
+suspend fun AtprotoIdentity.signInWithAppPassword(
     password: String,
     baseClient: HttpClient,
 ): AtprotoAppPasswordSession =
@@ -48,16 +46,9 @@ private suspend fun AtprotoIdentity.exchangeAppPassword(
     client: HttpClient,
     password: String,
 ): AtprotoAppPasswordSession {
-    val credentials = Stuff.myJson.encodeToString(CreateSessionRequest(did, password)).encodeToByteArray()
+    val credentials = Stuff.myJson.encodeToString(CreateSessionRequest(did, password))
     return client.preparePost("$pds/xrpc/com.atproto.server.createSession") {
-        // Ktor's OkHttp engine treats channel-backed bodies as one-shot.
-        setBody(object : OutgoingContent.ReadChannelContent() {
-            private val channel = ByteReadChannel(credentials)
-            override val contentType = ContentType.Application.Json
-            override val contentLength = credentials.size.toLong()
-
-            override fun readFrom() = channel
-        })
+        setBody(AtprotoPostContent(credentials, ContentType.Application.Json))
     }.execute { response ->
         if (!response.status.isSuccess())
             throw ApiException(response.status.value, response.status.description)

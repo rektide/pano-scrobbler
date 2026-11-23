@@ -135,6 +135,10 @@ kotlin {
             implementation(kotlin("test"))
         }
 
+        jvmTest.dependencies {
+            implementation(libs.okhttp.tls)
+        }
+
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(projects.extrasNonplay)
