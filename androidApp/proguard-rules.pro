@@ -23,6 +23,8 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn javax.annotation.**
+# Nimbus's shaded Gson references this build-time Error Prone annotation.
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
 -dontwarn org.conscrypt.**
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 # landed up in build/outputs/mapping/releaseGithub/missing_rules.txt
