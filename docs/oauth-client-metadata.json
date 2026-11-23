@@ -1,6 +1,6 @@
 {
   "client_id": "https://rektide.github.io/pano-scrobbler/oauth-client-metadata.json",
-  "client_name": "Pano Scrobbler (fork test)",
+  "client_name": "Pano Scrobbler",
   "client_uri": "https://rektide.github.io/pano-scrobbler/",
   "application_type": "native",
   "redirect_uris": ["io.github.rektide:/pano-scrobbler/oauth/callback"],
