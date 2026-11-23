@@ -53,9 +53,11 @@ abstract class PanoDb : RoomDatabase() {
     abstract fun getSeenEntitiesDao(): SeenEntitiesDao
 
     companion object {
-        val db = PlatformStuff.getDatabaseBuilder()
-            .addMigrations(*ManualMigrations.all)
-            .fallbackToDestructiveMigrationOnDowngrade(true)
-            .build()
+        val db by lazy {
+            PlatformStuff.getDatabaseBuilder()
+                .addMigrations(*ManualMigrations.all)
+                .fallbackToDestructiveMigrationOnDowngrade(true)
+                .build()
+        }
     }
 }
