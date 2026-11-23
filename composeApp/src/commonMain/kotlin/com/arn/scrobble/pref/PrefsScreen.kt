@@ -1,5 +1,7 @@
 package com.arn.scrobble.pref
 
+import pano_scrobbler.composeapp.generated.resources.atproto_account
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -998,6 +1000,10 @@ fun PrefsScreen(
 
         filteredHeader("services", Res.string.scrobble_services, Icons.Dns)
 
+        filteredItem("atproto", Res.string.atproto_account) { title ->
+            TextPref(text = title, onClick = { onNavigate(PanoRoute.AtAccount) })
+        }
+
         AccountType.entries
             .filterNot {
                 PlatformStuff.isTv && it == AccountType.FILE
@@ -1190,4 +1196,3 @@ private data class TitleStringResource(
     val formatRes: StringResource?,
     var string: String? = null
 )
-

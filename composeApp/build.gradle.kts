@@ -112,6 +112,7 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.okhttp)
+            implementation("com.nimbusds:nimbus-jose-jwt:10.9")
             implementation(libs.aboutlibraries.core)
             implementation(libs.kotlin.csv)
             implementation(libs.kermit)

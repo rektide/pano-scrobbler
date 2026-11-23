@@ -1,5 +1,7 @@
 package com.arn.scrobble.onboarding
 
+import pano_scrobbler.composeapp.generated.resources.atproto_account
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -125,6 +127,10 @@ fun ButtonStepperForLogin(
             expanded = dropDownShown,
             onDismissRequest = { dropDownShown = false }
         ) {
+            item(
+                onClick = { navigate(PanoRoute.AtAccount); dropDownShown = false },
+                text = { Text(stringResource(Res.string.atproto_account)) },
+            )
             accountTypesToStrings.forEach { (accType, string) ->
                 item(
                     onClick = {

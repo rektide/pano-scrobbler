@@ -74,6 +74,9 @@ sealed interface PanoRoute : NavKey {
     data object Prefs : PanoRoute, DeepLinkable, HasSearch
 
     @Serializable
+    data object AtAccount : PanoRoute
+
+    @Serializable
     data object DeleteAccount : PanoRoute
 
     @Serializable

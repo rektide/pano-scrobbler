@@ -42,6 +42,8 @@ import com.arn.scrobble.pref.AppListSaveType
 import com.arn.scrobble.pref.AppListScreen
 import com.arn.scrobble.pref.AutomationInfoScreen
 import com.arn.scrobble.pref.DeleteAccountScreen
+import com.arn.scrobble.api.atproto.AtAccountScreen
+import pano_scrobbler.composeapp.generated.resources.atproto_account
 import com.arn.scrobble.pref.ExportScreen
 import com.arn.scrobble.pref.ImportScreen
 import com.arn.scrobble.pref.OssCreditsScreen
@@ -244,6 +246,11 @@ object PanoNavGraph {
                 onNavigateToBilling = { navigate(PanoRoute.Billing) },
                 modifier = Modifier.navScrollableColumn()
             )
+        }
+
+        entry<PanoRoute.AtAccount> { route ->
+            onSetTitleRes(route, Res.string.atproto_account)
+            AtAccountScreen(Modifier.navScrollableColumn())
         }
 
         entry<PanoRoute.DeleteAccount> { route ->

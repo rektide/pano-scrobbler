@@ -82,6 +82,16 @@
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
 
+        <activity android:name="com.arn.scrobble.api.atproto.AtCallbackActivity"
+            android:exported="true" android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="io.github.kawaiidango" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name="com.arn.scrobble.main.MainActivity"
             android:configChanges="screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|orientation|smallestScreenSize|touchscreen|uiMode"

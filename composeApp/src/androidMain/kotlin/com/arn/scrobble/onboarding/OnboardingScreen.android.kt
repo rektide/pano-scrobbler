@@ -1,5 +1,7 @@
 package com.arn.scrobble.onboarding
 
+import com.arn.scrobble.api.atproto.hasAtAccount
+
 import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
@@ -287,8 +289,9 @@ actual fun OnboardingScreen(
     val showProxySettings = remember { WebViewProxyOverride.isWebViewProxyOverrideSupported() }
     val checkAppString = stringResource(Res.string.check_nls, BuildKonfig.APP_NAME)
 
-    LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) {
+    val isAtLoggedIn = hasAtAccount()
+    LaunchedEffect(isLoggedIn, isAtLoggedIn) {
+        if (isLoggedIn || isAtLoggedIn) {
             markAsDone(OnboardingStepType.LOGIN)
         }
     }

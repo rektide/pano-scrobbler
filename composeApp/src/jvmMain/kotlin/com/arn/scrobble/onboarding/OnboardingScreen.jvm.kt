@@ -1,5 +1,7 @@
 package com.arn.scrobble.onboarding
 
+import com.arn.scrobble.api.atproto.hasAtAccount
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -79,8 +81,9 @@ actual fun OnboardingScreen(
         }
     }
 
-    LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) {
+    val isAtLoggedIn = hasAtAccount()
+    LaunchedEffect(isLoggedIn, isAtLoggedIn) {
+        if (isLoggedIn || isAtLoggedIn) {
             markAsDone(OnboardingStepType.LOGIN)
         }
     }
