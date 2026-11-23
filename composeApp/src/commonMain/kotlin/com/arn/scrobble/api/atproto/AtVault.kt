@@ -22,6 +22,7 @@ internal data class AtSettings(
     val live: Set<AtTarget> = emptySet(),
     val delete: Set<AtTarget> = emptySet(),
     val likes: Boolean = false,
+    val rockskyMatch: Boolean = false,
 ) {
     fun requested(): Map<String, Set<String>> = buildMap {
         AtTarget.entries.forEach { target ->
@@ -57,6 +58,7 @@ internal data class AtSession(
     val issuer: AtIssuer? = null,
     val signer: AtSigner? = null,
     val claimed: Boolean = false,
+    val grantVersion: Int = 0,
 )
 
 @Serializable
@@ -87,6 +89,7 @@ internal interface AtVaultFiles {
 }
 
 internal expect fun platformAtVault(allowDesktopFile: Boolean): AtVaultFiles
+internal expect val atVaultNeedsFileConsent: Boolean
 
 internal class AtVault(private val factory: (Boolean) -> AtVaultFiles = ::platformAtVault) {
     // FileChannel locks from the same JVM can throw instead of waiting. Serialize them first.

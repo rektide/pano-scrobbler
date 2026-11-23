@@ -13,6 +13,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 internal actual fun platformAtVault(allowDesktopFile: Boolean): AtVaultFiles = AndroidAtVault()
+internal actual val atVaultNeedsFileConsent = false
 
 private class AndroidAtVault : AtVaultFiles {
     private val dir = File(applicationContext.noBackupFilesDir, "atproto").apply { mkdirs() }
