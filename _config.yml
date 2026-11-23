@@ -44,6 +44,7 @@ keep_files:
   - desktop-screenshots
   - composeApp
   - sitemap.xml
+  - oauth-client-metadata.json
 
 plugins:
   - jekyll-relative-links
