@@ -94,8 +94,9 @@ object Requesters {
 
     val lastfmUnauthedRequester by lazy { LastFmUnauthedRequester() }
 
-    private fun createBaseKtorClient(trustAll: Boolean, requestDns: Dns? = null) = invalidatableLazy {
+    private fun createBaseKtorClient(trustAll: Boolean, requestDns: Dns? = null, redirects: Boolean = true) = invalidatableLazy {
         HttpClient(OkHttp) {
+            followRedirects = redirects
             val proxyVal = proxy.value
 
             val proxyJvm = when (proxyVal.type) {
@@ -184,6 +185,9 @@ object Requesters {
     private val _atprotoOAuthKtorClient = createBaseKtorClient(false, atprotoPublicDns)
     val atprotoOAuthKtorClient by _atprotoOAuthKtorClient
 
+    private val _atprotoRepoReader = createBaseKtorClient(false, atprotoPublicDns, redirects = false)
+    val atprotoRepoReader by _atprotoRepoReader
+
     private fun createGenericKtorClient(trustAll: Boolean) = invalidatableLazy {
         val baseClient = if (trustAll) {
             val c by createBaseKtorClient(true)
@@ -238,6 +242,7 @@ object Requesters {
     private fun invalidateAll() {
         _baseKtorClient.invalidate()
         _atprotoOAuthKtorClient.invalidate()
+        _atprotoRepoReader.invalidate()
         _genericKtorClient.invalidate()
         _genericKtorTrustAllClient.invalidate()
         spotifyRequester.invalidateClient()

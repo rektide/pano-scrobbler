@@ -14,6 +14,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
@@ -76,6 +77,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import pano_scrobbler.composeapp.generated.resources.Res
+import pano_scrobbler.composeapp.generated.resources.atproto_public_recents
 import pano_scrobbler.composeapp.generated.resources.also_available_on
 import pano_scrobbler.composeapp.generated.resources.charts_custom
 import pano_scrobbler.composeapp.generated.resources.desktop
@@ -135,7 +137,7 @@ fun ScrobblesScreen(
     var timeJumpMenuShown by rememberSaveable { mutableStateOf(false) }
     val pendingScrobblesHeader =
         stringResource(Res.string.pending_scrobbles) + ": " + pendingScrobblesCount
-    val canLove = accountType != AccountType.PLEROMA
+    val canLove = accountType != AccountType.PLEROMA && !accountType.isReadOnly
 
     val scope = rememberCoroutineScope()
 
@@ -143,7 +145,7 @@ fun ScrobblesScreen(
         mutableStateOf(
             !PlatformStuff.isTv &&
                     selectedType != PanoTab.Scrobbles.ScrobblesSubTabType.LOVED &&
-                    accountType !in arrayOf(AccountType.FILE, AccountType.PLEROMA)
+                    accountType !in arrayOf(AccountType.FILE, AccountType.PLEROMA) && !accountType.isReadOnly
         )
     }
 
@@ -267,7 +269,7 @@ fun ScrobblesScreen(
 
 
     ResultEffect<PullToRefreshResult> {
-        if (it.tab == PanoTab.Scrobbles || it.tab == PanoTab.ScrobblesNoSubtabs) {
+        if (it.tab in listOf(PanoTab.Scrobbles, PanoTab.ScrobblesNoSubtabs, PanoTab.RecentsOnly)) {
             if (tracks.loadState.refresh !is LoadState.Loading) {
                 tracks.refresh()
             }
@@ -372,7 +374,15 @@ fun ScrobblesScreen(
                 )
                     emptyText { stringResource(Res.string.no_scrobbles) }
 
-                if (user.isSelf) {
+                if (accountType.isReadOnly) {
+                    item("atproto_public_recents") {
+                        Text(
+                            stringResource(Res.string.atproto_public_recents),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                } else if (user.isSelf) {
                     when (val scrobblerState = scrobblerState) {
                         ScrobblerState.Disabled, ScrobblerState.NLSDisabled -> {
                             item("notice") {
@@ -435,7 +445,7 @@ fun ScrobblesScreen(
                     }
                 }
 
-                if (selectedType == PanoTab.Scrobbles.ScrobblesSubTabType.SCROBBLES && user.isSelf) {
+                if (selectedType == PanoTab.Scrobbles.ScrobblesSubTabType.SCROBBLES && user.isSelf && !accountType.isReadOnly) {
                     pendingScrobblesListItems(
                         headerText = pendingScrobblesHeader,
                         headerIcon = Icons.HourglassEmpty,

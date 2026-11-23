@@ -266,7 +266,7 @@ fun PanoAppContent(
 
     val currentAccountType by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccountType }
     val userSelf by PlatformStuff.mainPrefs.data
-        .collectAsStateWithInitialValue { it.currentScrobblableAccount?.user }
+        .collectAsStateWithInitialValue { it.currentAccount?.user }
     val atprotoConnected by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection != null }
     val bottomSheetState = rememberBottomSheetState(
         initialValue = SheetValue.Hidden,
@@ -464,7 +464,6 @@ fun PanoAppContent(
         }
     }
 
-    // Keep account management available without trying to open Recents for an AT-only login.
     LaunchedEffect(userSelf != null, atprotoConnected) {
         if (!isDialogActivity) {
             when {

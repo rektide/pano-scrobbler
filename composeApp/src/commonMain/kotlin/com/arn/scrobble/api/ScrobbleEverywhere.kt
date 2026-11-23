@@ -264,7 +264,7 @@ object ScrobbleEverywhere {
     }
 
     suspend fun nowPlaying(scrobbleData: ScrobbleData): Map<Scrobblable, Result<ScrobbleResult>> {
-        return Scrobblables.all
+        return Scrobblables.writeTargets
             .filter { it.userAccount.canScrobble }
             .mapConcurrently(5) {
                 it to it.updateNowPlaying(scrobbleData)
@@ -285,7 +285,7 @@ object ScrobbleEverywhere {
                 .insert(scrobbleSource)
         }
 
-        val scrobblelables = Scrobblables.all.filter { it.userAccount.canScrobble }
+        val scrobblelables = Scrobblables.writeTargets.filter { it.userAccount.canScrobble }
 
         val scrobbleResults = scrobblelables
             .mapConcurrently(5) {
@@ -343,7 +343,7 @@ object ScrobbleEverywhere {
 
         val dao = PanoDb.db.getPendingScrobblesDao()
         val pl = dao.findLoved(track.artist.name, track.name)
-        val allScrobblables = Scrobblables.all
+        val allScrobblables = Scrobblables.writeTargets
         if (pl != null) {
             if (pl.event == ScrobbleEvent.unlove) {
                 val services = pl.services + allScrobblables.map { it.userAccount.type }

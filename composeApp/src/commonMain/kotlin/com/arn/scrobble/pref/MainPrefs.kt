@@ -253,10 +253,6 @@ data class MainPrefs(
     val currentAccount
         get() = scrobbleAccounts.firstOrNull { it.type == currentAccountType }
 
-    // The saved AT account is not a live Scrobblable until its writers/readers are registered.
-    val currentScrobblableAccount
-        get() = currentAccount?.takeUnless { it.type.isAtproto }
-
     internal val atprotoConnection
         get() = atprotoSession?.let { session ->
             val destinations = scrobbleAccounts.filter {

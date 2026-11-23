@@ -19,7 +19,8 @@
     <string name="atproto_disconnect" translatable="false">Disconnect</string>
     <string name="atproto_login_failed" translatable="false">Could not sign in. Check your handle and app password and try again.</string>
     <string name="atproto_disconnect_failed" translatable="false">Could not disconnect. Try again.</string>
-    <string name="atproto_sign_in_only" translatable="false">Teal and Rocksky scrobbling is not available yet.</string>
+    <string name="atproto_sign_in_only" translatable="false">Select Teal or Rocksky in your profile menu to browse Recents. Scrobbling is not available yet.</string>
+    <string name="atproto_public_recents" translatable="false">Public history from your AT Protocol server · Read only</string>
     <string name="atproto_open_browser" translatable="false">Sign in with browser</string>
     <string name="atproto_waiting_for_browser" translatable="false">Finish authorizing in your browser, then return to Pano.</string>
     <string name="atproto_paste_callback_info" translatable="false">If the browser cannot open Pano, copy the full callback URL from the browser and paste it below.</string>

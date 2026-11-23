@@ -1,6 +1,7 @@
 package com.arn.scrobble.api
 
 import co.touchlab.kermit.Logger
+import com.arn.scrobble.api.atproto.AtprotoScrobblable
 import com.arn.scrobble.api.atproto.AtprotoSessions
 import com.arn.scrobble.api.cache.CacheStrategy
 import com.arn.scrobble.api.file.FileScrobblable
@@ -171,6 +172,7 @@ enum class AccountType(val id: Int) {
 
     val isCustom get() = this != LASTFM && this != LISTENBRAINZ && this != LIBREFM && this != FILE
     val isAtproto get() = this == TEAL || this == ROCKSKY
+    val isReadOnly get() = isAtproto
 }
 
 internal fun List<UserAccountSerializable>.withScrobbleAccount(account: UserAccountSerializable): List<UserAccountSerializable> {
@@ -185,8 +187,7 @@ object Scrobblables {
 
     private val accounts = PlatformStuff.mainPrefs.data
         .stateInWithCache(Stuff.appScope) {
-            // The AT destination entries can be saved before their Scrobblables are implemented.
-            it.scrobbleAccounts.filterNot { it.type.isAtproto }.distinctBy { it.type }.toSet()
+            it.scrobbleAccounts.distinctBy { it.type }.toSet()
         }
 
     private val currentAccountType = PlatformStuff.mainPrefs.data
@@ -210,6 +211,8 @@ object Scrobblables {
 
             return scrobblablesCache.values
         }
+
+    val writeTargets get() = all.filterNot { it.userAccount.type.isReadOnly }
 
     val current
         @Synchronized
@@ -265,7 +268,7 @@ object Scrobblables {
             AccountType.PLEROMA -> Pleroma(userAccount)
 
             AccountType.FILE -> FileScrobblable(userAccount)
-            AccountType.TEAL, AccountType.ROCKSKY -> error("AT Protocol scrobblers are not registered")
+            AccountType.TEAL, AccountType.ROCKSKY -> AtprotoScrobblable(userAccount)
         }
     }
 }

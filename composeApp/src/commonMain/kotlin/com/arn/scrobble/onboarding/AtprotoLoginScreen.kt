@@ -53,7 +53,7 @@ internal fun AtprotoLoginScreen(
     viewModel: AtprotoLoginViewModel = viewModel { AtprotoLoginViewModel() },
 ) {
     val connection by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.atprotoConnection }
-    val hasScrobbler by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentScrobblableAccount != null }
+    val hasScrobbler by PlatformStuff.mainPrefs.data.collectAsStateWithInitialValue { it.currentAccount != null }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var replacing by rememberSaveable(connection) { mutableStateOf(false) }
     val handle = rememberTextFieldState(connection?.handle.orEmpty())
