@@ -69,6 +69,20 @@ release.storePassword=
 
 - Compile the native lib https://github.com/kawaiiDango/pano-native-components
 
+- To run the desktop app without packaging, put the native libraries for your
+  OS and architecture in `desktopApp/resources/<os>-<arch>/` and run
+  `bash gradlew :desktopApp:run` using JDK 25. The `:composeApp:jvmRun` task is
+  not the desktop launcher.
+
+- On Linux, install `desktop-file-utils` and use a desktop session with an
+  OpenURI portal so Pano can launch the default browser. The development run
+  advertises a hidden OAuth handler under `$XDG_DATA_HOME/applications` without
+  changing your defaults. Stop any other running Pano before starting it: the
+  development and installed launchers share the native single-instance listener.
+  The package's desktop entry provides the handler after installation. For an
+  AppImage, use Pano's **Add to app launcher** action (or desktop integration)
+  before signing in. If Firefox asks for permission to open Pano, allow it.
+
 - If you intend to package a build for desktop,
   use [GraalVM CE 25](https://github.com/graalvm/graalvm-ce-builds)
   as your JAVA_HOME and GRAALVM_HOME (both should be set). Also

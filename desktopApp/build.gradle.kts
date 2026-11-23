@@ -75,6 +75,12 @@ compose.desktop {
     }
 }
 
+if (IS_LINUX) {
+    tasks.withType<JavaExec>().configureEach {
+        if (name == "run") jvmArgs("-Dpano.dev.oauthHandler=true")
+    }
+}
+
 tasks.withType<ComposeHotRun>().configureEach {
     isAutoReloadEnabled = true
     mainClass = "com.arn.scrobble.main.MainKt"

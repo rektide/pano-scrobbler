@@ -10,7 +10,9 @@ else
 fi
 appNameWithoutSpaces="pano-scrobbler"
 nativeImageDir="$scriptDir/build/native/$resourcesDirName"
-appDir="/tmp/PanoScrobbler.AppDir"
+stageDir=$(mktemp -d "$scriptDir/build/linux-package.XXXXXXXX") || exit 1
+trap 'rm -rf -- "$stageDir"' EXIT
+appDir="$stageDir/PanoScrobbler.AppDir"
 libExecDir="$appDir/usr/libexec/pano-scrobbler"
 distDir="$scriptDir/../dist"
 pngIconPath="$scriptDir/../fastlane/metadata/android/en-US/images/icon.png"
@@ -22,9 +24,6 @@ verName="$((verCode / 100)).$((verCode % 100))"
 # Strip .so files
 strip --strip-unneeded "$nativeImageDir"/*.so
 strip --strip-unneeded "$nativeImageDir"/lib/*.so
-
-# Clean AppDir
-rm -rf "$appDir"
 
 install -Dm644 -t "${libExecDir}/lib/" "${nativeImageDir}"/lib/*.so
 install -Dm644 -t "${libExecDir}/" "${nativeImageDir}"/*.so
@@ -68,7 +67,7 @@ cp "$pngIconPath" "$appDir/.DirIcon"
 # Desktop file
 desktopFile="$libExecDir/$appNameWithoutSpaces.desktop"
 sed -i -e "s/^Icon=.*/Icon=$appNameWithoutSpaces-appimage/" "$desktopFile"
-sed -e "s/^Exec=.*/Exec=AppRun %U/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
+sed -e "s/^Exec=.*/Exec=AppRun %u/" "$desktopFile" >  "$appDir/$appNameWithoutSpaces.desktop"
 install -d "$appDir/usr/share/applications/"
 mv "$desktopFile" "$appDir/usr/share/applications/"
 
@@ -93,9 +92,7 @@ if ! command -v dpkg-deb &> /dev/null; then
 fi
 
 debFile="${distDir}/${appNameWithoutSpaces}-${resourcesDirName}.deb"
-debPkgDir="/tmp/pano-scrobbler-deb"
-
-rm -rf "$debPkgDir"
+debPkgDir="$stageDir/pano-scrobbler-deb"
 
 install -Dm644 -t "${debPkgDir}/opt/$appNameWithoutSpaces/lib/" "${nativeImageDir}"/lib/*.so
 install -Dm644 -t "${debPkgDir}/opt/$appNameWithoutSpaces/" "${nativeImageDir}"/*.so
@@ -125,6 +122,7 @@ Architecture: ${debArch}
 Maintainer: kawaiiDango <kawaiiDango@protonmail.com>
 Installed-Size: ${installedSize}
 Depends: dbus, libwebkitgtk-6.0-4
+Recommends: desktop-file-utils
 Section: sound
 Priority: optional
 Homepage: https://github.com/kawaiiDango/pano-scrobbler

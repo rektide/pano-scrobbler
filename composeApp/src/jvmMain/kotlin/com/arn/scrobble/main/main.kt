@@ -31,6 +31,7 @@ import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.PanoNativeComponents
+import com.arn.scrobble.api.atproto.isNativeAtprotoCallback
 import com.arn.scrobble.automation.Automation
 import com.arn.scrobble.billing.LicenseState
 import com.arn.scrobble.db.PanoDb
@@ -39,6 +40,7 @@ import com.arn.scrobble.logger.JavaUtilFileLogger
 import com.arn.scrobble.media.PlayingTrackNotifyEvent
 import com.arn.scrobble.media.notifyPlayingTrackEvent
 import com.arn.scrobble.navigation.PanoNavigationType
+import com.arn.scrobble.onboarding.DesktopOAuthHandoff
 import com.arn.scrobble.pref.AppItem
 import com.arn.scrobble.themes.AppTheme
 import com.arn.scrobble.themes.DayNightMode
@@ -177,9 +179,18 @@ private fun preventMultipleInstances() {
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
-    val cmdlineArgs = DesktopStuff.parseCmdlineArgs(args)
+    // The desktop supplies the URI as one argument. Consume it before generic CLI
+    // parsing or app startup, and never interpolate it into a shell command or log.
+    val parsedArgs = args.filterNot { it.startsWith("${DesktopOAuthHandoff.scheme}:", ignoreCase = true) }
+    val callback = args.filter { it.isNativeAtprotoCallback() }.singleOrNull()
+    val relayOnly = DesktopOAuthHandoff.RELAY_ONLY in parsedArgs
+    if (callback == null && (relayOnly || parsedArgs.size != args.size)) return
+    val cmdlineArgs = DesktopStuff.parseCmdlineArgs(parsedArgs.filterNot { it == DesktopOAuthHandoff.RELAY_ONLY }.toTypedArray())
     DesktopStuff.setSystemProperties()
     PanoNativeComponents.load()
+
+    if (callback != null && PanoNativeComponents.sendIpcCommand(DesktopOAuthHandoff.IPC_COMMAND, callback)) return
+    if (relayOnly) return
 
     if (DesktopStuff.IS_WINDOWS && !BuildKonfig.DEBUG) {
         val attached = PanoNativeComponents.attachParentConsoleWindows()
@@ -207,7 +218,8 @@ fun main(args: Array<String>) {
         val logFilePath = PlatformStuff.logsDir.resolve("pano-native-components.log")
         PanoNativeComponents.setLogFilePath(logFilePath.absolutePath)
 
-        if (!BuildKonfig.DEBUG)
+        // The Linux native IPC listener is shared by release and development builds.
+        if (!BuildKonfig.DEBUG || DesktopStuff.IS_LINUX)
             preventMultipleInstances()
     }
 
@@ -215,6 +227,8 @@ fun main(args: Array<String>) {
 
     init()
     initHeadlessResourceEnvironment()
+    if (DesktopStuff.IS_LINUX) DesktopOAuthHandoff.registerDevelopmentHandler()
+    if (callback != null) DesktopOAuthHandoff.deliver(callback)
 
     // ------------------------------- shutdown hook
 
@@ -393,7 +407,7 @@ fun main(args: Array<String>) {
 
     // ------------------------ UI
 
-    var windowShown by mutableStateOf(!cmdlineArgs.minimized)
+    var windowShown by mutableStateOf(!cmdlineArgs.minimized || callback != null)
     var windowCreated by mutableStateOf(windowShown)
     val openOrQuitTrigger = MutableSharedFlow<OpenOrQuitAction>(extraBufferCapacity = 1)
 
@@ -442,7 +456,7 @@ fun main(args: Array<String>) {
 
     var firstCompositionDone = false
 
-    if (cmdlineArgs.minimized) {
+    if (cmdlineArgs.minimized && callback == null) {
         val result = runBlocking {
             openOrQuitTrigger.first()
         }
