@@ -35,6 +35,10 @@ class AtprotoOAuthServer(
     val token: HttpUrl,
 )
 
+/**
+ * The PDS names its authorization server in its protected-resource metadata; the two servers can be separate.
+ * Check that the resource matches the PDS and that the authorization server's issuer and endpoints match its advertised origin.
+ */
 suspend fun HttpClient.discoverAtprotoOAuth(pds: String): AtprotoOAuthServer {
     val pdsOrigin = oauthOrigin(pds) ?: throw ApiException(-1, "Invalid AT Protocol resource origin")
     val resource = oauthMetadata<ProtectedResource>(pdsOrigin, "oauth-protected-resource")
@@ -67,6 +71,10 @@ private suspend inline fun <reified T> HttpClient.oauthMetadata(origin: HttpUrl,
         response.readOAuthJson(serializer<T>())
     }
 
+/**
+ * Retry once only when the server rejects the request with `use_dpop_nonce` and supplies a usable nonce.
+ * The retry uses that nonce in a freshly signed proof; redirects and other failures do not trigger a replay.
+ */
 suspend fun <T : Any> HttpClient.oauthPost(
     url: HttpUrl,
     dpop: AtprotoOAuthDpop,

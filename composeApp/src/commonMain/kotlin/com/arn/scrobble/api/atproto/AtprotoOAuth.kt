@@ -41,7 +41,7 @@ class AtprotoOAuthSession(
     val dpop: AtprotoOAuthDpop,
 )
 
-/** A browser authorization and its in-memory callback state. A bound callback consumes it once. */
+/** Holds the browser URL and the pending in-memory sign-in. */
 class AtprotoOAuthSignIn(
     val authorizationUrl: String,
     private val issuer: String,
@@ -51,7 +51,10 @@ class AtprotoOAuthSignIn(
 ) {
     private val pending = AtomicReference<suspend (String) -> AtprotoOAuthSession>(exchange)
 
-    /** Completes a callback received at the exact registered redirect URI, without saving credentials. */
+    /**
+     * Checks the exact redirect URI, state and issuer before accepting a callback.
+     * It consumes the pending exchange atomically before any network call, so even a denial or a failed exchange cannot be reused.
+     */
     suspend fun complete(callbackUrl: String): AtprotoOAuthSession {
         val invalid = "Invalid AT Protocol OAuth callback"
         val uri = callbackUrl.takeIf { it.length <= 16 * 1024 }?.let(::parseOAuthUri)
@@ -85,7 +88,11 @@ class AtprotoOAuthSignIn(
 class AtprotoOAuth(private val baseClient: () -> HttpClient) {
     constructor() : this({ Requesters.atprotoOAuthKtorClient })
 
-    /** Resolves the account and prepares a URL to open in the system browser. */
+    /**
+     * Resolves the account and pushes the authorization request before returning a browser URL that points to it.
+     * The browser gets a request reference instead of the form, and Pano keeps the PKCE verifier in memory to prove it started the request when exchanging the code.
+     * See the [AT Protocol OAuth profile](https://atproto.com/specs/oauth).
+     */
     suspend fun start(handle: String, permissions: Set<AtprotoOAuthPermission>): AtprotoOAuthSignIn =
         client().use { http ->
             val identity = resolveAtprotoHandle(handle) { url ->
@@ -174,6 +181,10 @@ private fun canonicalScope(scope: String): String = scope.substringBefore('?').l
     if ('?' !in scope) name else "$name?${scope.substringAfter('?').split('&').sorted().joinToString("&")}"
 }
 
+/**
+ * DPoP (Demonstrating Proof of Possession) signs requests to prove Pano holds the private key bound to the session's tokens.
+ * The same key is used throughout the session, but each server origin gets its own nonce.
+ */
 class AtprotoOAuthDpop(private val key: ECKey) {
     private val nonces = mutableMapOf<String, String>()
 

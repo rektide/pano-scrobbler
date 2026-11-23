@@ -40,7 +40,10 @@ suspend fun HttpClient.getIdentityDocument(url: String): String =
         body.readString()
     }
 
-/** Returns the account DID and HTTPS PDS after checking that the DID document claims the supplied handle. */
+/**
+ * Resolves a handle to a DID (decentralized identifier), the account's stable ID even if its handle changes.
+ * The DID document must claim the handle and name an HTTPS PDS (Personal Data Server), which hosts the account's records.
+ */
 suspend fun resolveAtprotoHandle(
     input: String,
     getDocument: suspend (String) -> String = { url ->
