@@ -46,6 +46,7 @@ fun getWorker(
 ): CommonWorker {
     return when (name) {
         PendingScrobblesWorker.NAME -> PendingScrobblesWorker(setCommonProgress)
+        AtDeliveryWorker.NAME -> AtDeliveryWorker(setCommonProgress)
         DigestType.DIGEST_DAILY.name -> DigestWorker(DigestType.DIGEST_DAILY, setCommonProgress)
         DigestType.DIGEST_WEEKLY.name -> DigestWorker(DigestType.DIGEST_WEEKLY, setCommonProgress)
         DigestType.DIGEST_MONTHLY.name -> DigestWorker(DigestType.DIGEST_MONTHLY, setCommonProgress)

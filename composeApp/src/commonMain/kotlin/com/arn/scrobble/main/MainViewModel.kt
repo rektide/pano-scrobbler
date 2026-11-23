@@ -94,10 +94,11 @@ class MainViewModel : ViewModel() {
 
             val isRunning = PendingScrobblesWork.state().first() == CommonWorkState.RUNNING
 
-            if ((hasPending || atOutbox.hasRunnable()) && !isRunning) {
+            if (hasPending && !isRunning) {
                 PendingScrobblesWork.schedule(force)
             }
         }
+        viewModelScope.launch(Dispatchers.IO) { atOutbox.recover() }
 
         updateScrobblerServiceState(true)
     }

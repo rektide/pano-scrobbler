@@ -9,6 +9,9 @@ import androidx.compose.ui.unit.dp
 import com.arn.scrobble.utils.PlatformStuff
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
+import pano_scrobbler.composeapp.generated.resources.*
 
 @Composable
 internal fun hasAtAccount(): Boolean {
@@ -26,7 +29,7 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
     var password by remember { mutableStateOf("") }
     var callback by remember { mutableStateOf("") }
     var settings by remember { mutableStateOf(AtSettings()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<StringResource?>(null) }
     var busy by remember { mutableStateOf(false) }
     var allowFile by remember { mutableStateOf(false) }
     var confirmDisconnect by remember { mutableStateOf(false) }
@@ -48,15 +51,15 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
         scope.launch {
             try { action(); reload() }
             catch (e: CancellationException) { throw e }
-            catch (e: AtFailure) { error = e.problem.text }
-            catch (_: Exception) { error = AtProblem.NETWORK.text }
+            catch (e: AtFailure) { error = e.problem.message }
+            catch (_: Exception) { error = AtProblem.NETWORK.message }
             finally { busy = false }
         }
     }
 
     LaunchedEffect(changed) {
         // A missing POSIX vault before first opt-in is normal.
-        try { reload() } catch (e: AtFailure) { if (!PlatformStuff.isDesktop) error = e.problem.text }
+        try { reload() } catch (e: AtFailure) { error = e.problem.message }
     }
     LaunchedEffect(account?.identity?.did) {
         val did = account?.identity?.did ?: return@LaunchedEffect
@@ -65,27 +68,27 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
             try {
                 val renewed = atAuthority.account()
                 if (renewed.identity?.did == did) account = renewed
-            } catch (e: AtFailure) { error = e.problem.text }
+            } catch (e: AtFailure) { error = e.problem.message }
         }
     }
     val identity = account?.identity
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("One account can send to Teal, Rocksky, or both.")
-        OutlinedButton(onClick = { browse(identity?.did) }) { Text("Browse public listening data") }
+        Text(stringResource(Res.string.at_account_intro))
+        OutlinedButton(onClick = { browse(identity?.did) }) { Text(stringResource(Res.string.at_account_browse)) }
         if (identity != null) {
             Text(identity.handle ?: identity.did, style = MaterialTheme.typography.titleMedium)
             if (identity.handle != null) Text(identity.did)
-            Text(when (account?.method) {
-                AtMethod.OAUTH -> "Connected · Browser OAuth"
-                AtMethod.APP_PASSWORD -> "Connected · App password"
-                null -> AtProblem.RECONNECT.text
-            })
+            Text(stringResource(when (account?.method) {
+                AtMethod.OAUTH -> Res.string.at_connected_oauth
+                AtMethod.APP_PASSWORD -> Res.string.at_connected_password
+                null -> account?.problem?.message ?: AtProblem.RECONNECT.message
+            }))
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        notices?.takeUnless { it.text == error || it == AtProblem.STORAGE && identity == null }
-            ?.let { Text(it.text, color = MaterialTheme.colorScheme.error) }
+        (error ?: account?.problem?.message?.takeIf { identity == null })?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+        notices?.takeUnless { it.message == error || it == account?.problem || it == AtProblem.STORAGE && identity == null }
+            ?.let { Text(stringResource(it.message), color = MaterialTheme.colorScheme.error) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        OutlinedTextField(identifier, { identifier = it }, enabled = !busy, singleLine = true, label = { Text("Handle or DID") })
+        OutlinedTextField(identifier, { identifier = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_did)) })
         fun edit(next: AtSettings) {
             if (identity == null) settings = next
             else run {
@@ -96,61 +99,62 @@ internal fun AtAccountScreen(modifier: Modifier, browse: (String?) -> Unit) {
             }
         }
         AtTarget.entries.forEach { target ->
-            AtToggle("Send completed plays to ${target.label}", target in settings.completed, !busy) {
+            AtToggle(stringResource(Res.string.at_send_completed, target.label), target in settings.completed, !busy) {
                 edit(settings.copy(completed = settings.completed.toggled(target, it)))
             }
-            AtToggle("Publish live status on ${target.label}", target in settings.live, !busy) {
+            AtToggle(stringResource(Res.string.at_live_toggle, target.label), target in settings.live, !busy) {
                 edit(settings.copy(live = settings.live.toggled(target, it)))
             }
-            AtToggle("Allow deleting my ${target.label} listens", target in settings.delete, !busy) {
+            AtToggle(stringResource(Res.string.at_delete_toggle, target.label), target in settings.delete, !busy) {
                 edit(settings.copy(delete = settings.delete.toggled(target, it)))
             }
         }
-        AtToggle("Allow loving and unloving Rocksky songs", settings.likes, !busy) { edit(settings.copy(likes = it)) }
-        if (settings.completed.size == 2) Text("If you already mirror Teal to Rocksky, select Teal only to avoid duplicate Rocksky plays.")
+        AtToggle(stringResource(Res.string.at_love_toggle), settings.likes, !busy) { edit(settings.copy(likes = it)) }
+        AtToggle(stringResource(Res.string.at_match_toggle), settings.rockskyMatch, !busy) { edit(settings.copy(rockskyMatch = it)) }
+        if (settings.completed.size == 2) Text(stringResource(Res.string.at_mirror_warning))
         account?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
-            Text("${AtProblem.PERMISSION.text}\n" + missing.entries.joinToString("\n") { (key, actions) -> "$key: ${actions.sorted().joinToString()}" })
+            Text(stringResource(AtProblem.PERMISSION.message) + "\n" + missing.entries.joinToString("\n") { (key, actions) -> "$key: ${actions.sorted().joinToString()}" })
         }
-        if (PlatformStuff.isDesktop && account == null) {
-            AtToggle("Use an owner-only local file (not encrypted; POSIX filesystem required)", allowFile, !busy) { allowFile = it }
+        if (atVaultNeedsFileConsent && identity == null) {
+            AtToggle(stringResource(Res.string.at_allow_posix), allowFile, !busy) { allowFile = it }
         }
-        Text("Browser sign-in grants selected actions and may require reconnecting periodically.")
+        Text(stringResource(Res.string.at_browser_scope))
         Button(enabled = !busy && identifier.isNotBlank(), onClick = {
             run { PlatformStuff.openInBrowser(atAuthority.beginBrowser(identifier, settings, allowFile)) }
-        }) { Text(if (identity == null) "Sign in with browser" else "Authorize or reconnect in browser") }
+        }) { Text(stringResource(if (identity == null) Res.string.at_browser_login else Res.string.at_browser_reconnect)) }
         if (account?.waiting == true) {
-            Text("Finish approval in your browser. Return here when done.")
+            Text(stringResource(Res.string.at_browser_waiting))
             if (PlatformStuff.isDesktop) {
-                OutlinedTextField(callback, { callback = it }, label = { Text("Complete callback URL") }, singleLine = true,
+                OutlinedTextField(callback, { callback = it }, label = { Text(stringResource(Res.string.at_callback_url)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation())
                 Button(enabled = !busy && callback.isNotBlank(), onClick = {
                     val submitted = callback.trim()
                     callback = ""
                     run { atAuthority.finishBrowser(submitted) }
-                }) { Text("Complete browser sign-in") }
+                }) { Text(stringResource(Res.string.at_callback_complete)) }
             }
         }
-        Text("Create an app password in your provider’s account settings. This grants broader account access; never enter your primary password here.")
+        Text(stringResource(Res.string.at_password_intro))
         OutlinedTextField(password, { password = it }, enabled = !busy, singleLine = true,
-            label = { Text("App password") }, visualTransformation = PasswordVisualTransformation())
+            label = { Text(stringResource(Res.string.at_password)) }, visualTransformation = PasswordVisualTransformation())
         Button(enabled = !busy && identifier.isNotBlank() && password.isNotBlank(), onClick = {
             val submitted = password.trim()
             password = ""
             run { atAuthority.appPassword(identifier, submitted, settings, allowFile) }
-        }) { Text("Use an app password") }
+        }) { Text(stringResource(Res.string.at_password_use)) }
         if (identity != null) {
             AtPendingList(identity.did, changed, onRetry = { run { atOutbox.retry(identity.did) } })
         }
-        if (identity != null) OutlinedButton(enabled = !busy, onClick = { confirmDisconnect = true }) { Text("Disconnect") }
+        if (identity != null) OutlinedButton(enabled = !busy, onClick = { confirmDisconnect = true }) { Text(stringResource(Res.string.at_disconnect)) }
     }
     if (confirmDisconnect && identity != null) AlertDialog(
         onDismissRequest = { confirmDisconnect = false },
-        text = { Text("Pending plays are paused for this DID. Public history is not deleted, and live status may remain visible until expiry.") },
+        text = { Text(stringResource(Res.string.at_disconnect_explain)) },
         confirmButton = { TextButton(onClick = {
             confirmDisconnect = false
-            run { if (!atAuthority.disconnect(identity.did)) error = "Disconnected locally; remote session revocation was not confirmed." }
-        }) { Text("Disconnect") } },
-        dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Cancel") } },
+            run { if (!atAuthority.disconnect(identity.did)) error = Res.string.at_disconnect_unconfirmed }
+        }) { Text(stringResource(Res.string.at_disconnect)) } },
+        dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text(stringResource(Res.string.at_cancel)) } },
     )
 }
 
@@ -163,23 +167,22 @@ private fun AtPendingList(did: String, changed: String, onRetry: () -> Unit) {
         }
     }
     if (rows.isNotEmpty()) {
-        Text("Pending deliveries", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(Res.string.at_pending), style = MaterialTheme.typography.titleMedium)
         rows.forEach { row ->
             val target = AtTarget.valueOf(row.target).label
-            val title = runCatching { kotlinx.serialization.json.Json.decodeFromString<com.arn.scrobble.api.lastfm.ScrobbleData>(row.original).track }.getOrNull() ?: "Listen"
+            val title = runCatching { kotlinx.serialization.json.Json.decodeFromString<com.arn.scrobble.api.lastfm.ScrobbleData>(row.original).track }.getOrNull() ?: stringResource(Res.string.at_listen)
             val reason = when (row.state) {
-                "PAUSED" -> "Authorization needed or destination permission missing"
-                "RECONNECT" -> "Authorization needed"
-                "PERMISSION" -> "Destination permission missing"
-                "RETRY" -> "Offline/retrying"
-                "CONFLICT" -> "Record conflict"
-                "METADATA" -> "Required track metadata missing or invalid"
-                "REJECTED" -> "Record rejected by your provider"
-                else -> "Queued"
+                "PAUSED", "RECONNECT" -> AtProblem.RECONNECT.message
+                "PERMISSION" -> AtProblem.PERMISSION.message
+                "RETRY" -> Res.string.at_pending_retry
+                "CONFLICT" -> AtProblem.CONFLICT.message
+                "METADATA" -> AtProblem.INPUT.message
+                "REJECTED" -> Res.string.at_pending_rejected
+                else -> Res.string.at_pending_queued
             }
-            Text("$target · $title — $reason")
+            Text(stringResource(Res.string.at_pending_row, target, title, stringResource(reason)))
         }
-        OutlinedButton(onClick = onRetry) { Text("Retry paused plays") }
+        OutlinedButton(onClick = onRetry) { Text(stringResource(Res.string.at_retry_paused)) }
     }
 }
 

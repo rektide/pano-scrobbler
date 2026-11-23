@@ -1,6 +1,5 @@
 package com.arn.scrobble.work
 
-import com.arn.scrobble.api.atproto.atOutbox
 
 import com.arn.scrobble.BuildKonfig
 import com.arn.scrobble.api.AccountType
@@ -46,8 +45,7 @@ class PendingScrobblesWorker(
             submitLoves()
             submitScrobbles()
 
-            val atRetry = atOutbox.drain()
-            errored = atRetry || failsMap.values.any { it > 0 }
+            errored = failsMap.values.any { it > 0 }
         }
 
         return if (errored) {

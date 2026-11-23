@@ -10,6 +10,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.BufferedSink
+import org.jetbrains.compose.resources.StringResource
+import pano_scrobbler.composeapp.generated.resources.*
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Proxy
@@ -17,21 +19,21 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-internal enum class AtProblem(val text: String) {
-    IDENTITY("Could not verify the AT Protocol account or its server."),
-    METADATA("Browser sign-in is unavailable: Pano's published OAuth metadata could not be verified. You can use an app password instead."),
-    CALLBACK("Invalid, expired or already-used browser response. Start browser sign-in again."),
-    LOGIN("Sign-in was rejected. Check the account, app password or provider approval."),
-    RECONNECT("Authorization needed — reconnect the same DID to resume delivery."),
-    PERMISSION("Destination permission missing — review enabled actions and authorize in the browser."),
-    STORAGE("AT Protocol credential storage is unavailable. Check storage and try again."),
-    NETWORK("Offline or server temporarily unavailable. Try again later."),
-    RESPONSE("Unexpected AT Protocol response."),
-    CONFLICT("Record conflict — the existing record was not changed."),
-    INPUT("Required track metadata is missing or invalid."),
+internal enum class AtProblem(val message: StringResource) {
+    IDENTITY(Res.string.at_problem_identity),
+    METADATA(Res.string.at_problem_metadata),
+    CALLBACK(Res.string.at_problem_callback),
+    LOGIN(Res.string.at_problem_login),
+    RECONNECT(Res.string.at_problem_reconnect),
+    PERMISSION(Res.string.at_problem_permission),
+    STORAGE(Res.string.at_problem_storage),
+    NETWORK(Res.string.at_problem_network),
+    RESPONSE(Res.string.at_problem_response),
+    CONFLICT(Res.string.at_problem_conflict),
+    INPUT(Res.string.at_problem_input),
 }
 
-internal class AtFailure(val problem: AtProblem) : IOException(problem.text)
+internal class AtFailure(val problem: AtProblem) : IOException(problem.name)
 internal fun checkAt(condition: Boolean, problem: AtProblem = AtProblem.RESPONSE) {
     if (!condition) throw AtFailure(problem)
 }
@@ -54,7 +56,8 @@ internal fun secureUrl(raw: String?): HttpUrl = raw?.toHttpUrlOrNull()?.takeIf {
 internal fun HttpUrl.origin() = newBuilder().encodedPath("/").query(null).fragment(null).build()
 internal fun HttpUrl.xrpc(nsid: String) = newBuilder().addPathSegments("xrpc/$nsid")
 
-internal data class AtReply(val code: Int, val text: String, val nonce: String?, val retryAfter: String?, val mediaType: String?) {
+internal data class AtReply(val code: Int, val text: String, val nonce: String?, val retryAfter: String?, val mediaType: String?,
+                            val challenges: List<Challenge> = emptyList()) {
     val json: JsonObject get() = try {
         Json.parseToJsonElement(text) as? JsonObject ?: throw AtFailure(AtProblem.RESPONSE)
     } catch (_: IllegalArgumentException) { throw AtFailure(AtProblem.RESPONSE) }
@@ -98,7 +101,7 @@ internal class AtWire(private val build: () -> OkHttpClient.Builder = ::atClient
                         checkAt(!source.request(2_097_153L))
                         AtReply(it.code, source.readUtf8(), it.headers.values("DPoP-Nonce").singleOrNull()
                             ?.takeIf { nonce -> nonce.length in 1..2048 && nonce.all { c -> c in '!'..'~' } },
-                            it.header("Retry-After"), it.body.contentType()?.let { mt -> "${mt.type}/${mt.subtype}" })
+                            it.header("Retry-After"), it.body.contentType()?.let { mt -> "${mt.type}/${mt.subtype}" }, it.challenges())
                     }
                 }
                 value.fold(result::resume, result::resumeWithException)

@@ -6,6 +6,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl
+import org.jetbrains.compose.resources.StringResource
+import pano_scrobbler.composeapp.generated.resources.Res
+import pano_scrobbler.composeapp.generated.resources.at_public_profile
+import pano_scrobbler.composeapp.generated.resources.at_rock_profile
 
 internal const val ROCKSKY_VIEW = "https://api.rocksky.app"
 internal const val TEAL_VIEW = "https://view.teal.fm"
@@ -23,7 +27,7 @@ internal data class AtListen(
     val expiry: Long? = null,
 )
 
-internal data class AtPublicProfile(val displayName: String?, val handle: String?, val avatar: String?, val source: String)
+internal data class AtPublicProfile(val displayName: String?, val handle: String?, val avatar: String?, val source: StringResource)
 internal data class AtReadPage<C : Any, T>(val values: List<T>, val next: C?)
 
 /** A walk over real continuations. An empty *filtered* page can still have a next cursor. */
@@ -105,13 +109,13 @@ internal class AtPublic(
         if (query.target == AtTarget.ROCKSKY) {
             val doc = rocksky("actor.getProfile", identity.did)
             checkAt(doc.text("did") == identity.did)
-            return AtPublicProfile(doc.text("displayName"), doc.text("handle"), image(doc.text("avatar")), "Rocksky profile")
+            return AtPublicProfile(doc.text("displayName"), doc.text("handle"), image(doc.text("avatar")), Res.string.at_rock_profile)
         }
         // Teal's deployed profile query requires auth. Public AT identity profile is labeled separately.
         val doc = json(secureUrl("https://public.api.bsky.app").xrpc("app.bsky.actor.getProfile")
             .addQueryParameter("actor", identity.did).build())
         checkAt(doc.text("did") == identity.did)
-        return AtPublicProfile(doc.text("displayName"), doc.text("handle"), image(doc.text("avatar")), "Public AT account profile (Bluesky)")
+        return AtPublicProfile(doc.text("displayName"), doc.text("handle"), image(doc.text("avatar")), Res.string.at_public_profile)
     }
 
     suspend fun listRecords(identity: AtIdentity, collection: String, limit: Int, cursor: String?) =

@@ -21,8 +21,10 @@ import com.arn.scrobble.utils.PlatformStuff
         SeenTrackAlbumAssociation::class,
         AtDelivery::class,
         AtLiveOwner::class,
+        AtEnrollmentRow::class,
+        AtEventClock::class,
     ],
-    version = 23,
+    version = 24,
     autoMigrations = [
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11, spec = Spec_10_11::class),
@@ -37,6 +39,7 @@ import com.arn.scrobble.utils.PlatformStuff
         AutoMigration(from = 20, to = 21),
         AutoMigration(from = 21, to = 22),
         AutoMigration(from = 22, to = 23),
+        AutoMigration(from = 23, to = 24),
     ],
 )
 @ConstructedBy(PanoDbConstructor::class)

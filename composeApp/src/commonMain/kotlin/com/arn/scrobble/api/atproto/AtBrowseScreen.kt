@@ -10,6 +10,10 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
+import pano_scrobbler.composeapp.generated.resources.*
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -26,7 +30,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     var content by remember { mutableStateOf<AtReadPage<String, AtListen>?>(null) }
     var status by remember { mutableStateOf<AtListen?>(null) }
     var profile by remember { mutableStateOf<AtPublicProfile?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<StringResource?>(null) }
     var auxError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var enrich by remember { mutableStateOf(false) }
@@ -40,7 +44,7 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
     var confirmDelete by remember { mutableStateOf<AtRef?>(null) }
     var subject by remember { mutableStateOf<AtRef?>(null) }
     var loved by remember { mutableStateOf<Boolean?>(null) }
-    var notice by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<StringResource?>(null) }
     val scope = rememberCoroutineScope()
 
     fun run(block: suspend () -> Unit) {
@@ -50,9 +54,9 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         scope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (e: AtFailure) { error = e.problem.text }
-            catch (_: java.io.IOException) { error = AtProblem.NETWORK.text }
-            catch (_: java.time.DateTimeException) { error = "Enter dates as YYYY-MM-DD." }
+            catch (e: AtFailure) { error = e.problem.message }
+            catch (_: java.io.IOException) { error = AtProblem.NETWORK.message }
+            catch (_: java.time.DateTimeException) { error = Res.string.at_date_error }
             finally { busy = false }
         }
     }
@@ -74,10 +78,10 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         status = null
         profile = null
         if (start == null && end == null) {
-            status = try { atPublic.live(resolved) } catch (e: java.io.IOException) { auxError = "Live status unavailable."; null }
+            status = try { atPublic.live(resolved) } catch (e: java.io.IOException) { auxError = getString(Res.string.at_live_error); null }
         }
         profile = try { atPublic.profile(resolved) } catch (e: java.io.IOException) {
-            auxError = listOfNotNull(auxError, "Public profile unavailable.").joinToString(" "); null
+            auxError = listOfNotNull(auxError, getString(Res.string.at_profile_error)).joinToString(" "); null
         }
     }
 
@@ -113,35 +117,35 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
                     enabled = !busy, label = { Text(source.label) })
             }
         }
-        OutlinedTextField(actor, { actor = it }, enabled = !busy, singleLine = true, label = { Text("Public handle or DID") })
-        OutlinedTextField(from, { from = it }, enabled = !busy, singleLine = true, label = { Text("From date (UTC, optional)") })
-        OutlinedTextField(through, { through = it }, enabled = !busy, singleLine = true, label = { Text("Through date (UTC, optional)") })
-        Button(enabled = !busy && actor.isNotBlank(), onClick = { load(target) }) { Text("Load / refresh") }
+        OutlinedTextField(actor, { actor = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_public_did)) })
+        OutlinedTextField(from, { from = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_date_from)) })
+        OutlinedTextField(through, { through = it }, enabled = !busy, singleLine = true, label = { Text(stringResource(Res.string.at_date_through)) })
+        Button(enabled = !busy && actor.isNotBlank(), onClick = { load(target) }) { Text(stringResource(Res.string.at_refresh)) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         auxError?.let { Text(it) }
         val loaded = query
         if (loaded != null) {
-            val title = if (loaded.target == AtTarget.TEAL) "Teal · records on this account’s PDS" else "Rocksky · indexed history (may lag the PDS)"
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            val title = if (loaded.target == AtTarget.TEAL) Res.string.at_teal_history else Res.string.at_rock_history
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
             profile?.let { p ->
                 ListItem(headlineContent = { Text(p.displayName ?: p.handle ?: loaded.identity.did) },
-                    supportingContent = { Text(p.source) }, leadingContent = { AtArtwork(p.avatar) })
+                    supportingContent = { Text(stringResource(p.source)) }, leadingContent = { AtArtwork(p.avatar) })
             }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AtSection.entries.forEach { view ->
-                    FilterChip(section == view, onClick = { loadSection(view, period) }, enabled = !busy, label = { Text(view.label) })
+                    FilterChip(section == view, onClick = { loadSection(view, period) }, enabled = !busy, label = { Text(stringResource(view.label)) })
                 }
             }
-            notice?.let { Text(it) }
+            notice?.let { Text(stringResource(it)) }
             if (section == AtSection.HISTORY) {
-                if (page == 1) status?.let { AtListenRow(it, "Now playing · PDS") }
+                if (page == 1) status?.let { AtListenRow(it, stringResource(Res.string.at_now_playing)) }
                 if (loaded.target == AtTarget.TEAL) Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Checkbox(enrich, { enrich = it })
-                    Text("Look up album artwork from Cover Art Archive using the release’s MusicBrainz ID")
+                    Text(stringResource(Res.string.at_cover_lookup))
                 }
                 content?.let { result ->
-                if (result.values.isEmpty()) Text(if (result.next != null) "No matching plays on this page. More pages are available." else "No plays on this page.")
+                if (result.values.isEmpty()) Text(stringResource(if (result.next != null) Res.string.at_empty_matches else Res.string.at_empty_plays))
                 result.values.forEach { item ->
                     val art = item.image ?: item.releaseMbid?.takeIf { enrich }?.let { "https://coverartarchive.org/release/$it/front-250" }
                     AtListenRow(item.copy(image = art), action = {
@@ -152,41 +156,41 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
                             notice = null
                             // Anonymous scrolling never opens the credential vault. Only explicit record actions do.
                             run { actionAccount = try { atAuthority.account() } catch (_: AtFailure) { null } }
-                        }) { Text("Actions") }
+                        }) { Text(stringResource(Res.string.at_actions)) }
                     })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(enabled = !busy && page > 1, onClick = { run { selected = null; content = pager?.page(page - 1); page-- } }) { Text("Previous") }
-                    Text("Page $page", Modifier.padding(top = 12.dp))
+                    OutlinedButton(enabled = !busy && page > 1, onClick = { run { selected = null; content = pager?.page(page - 1); page-- } }) { Text(stringResource(Res.string.at_previous)) }
+                    Text(stringResource(Res.string.at_page, page), Modifier.padding(top = 12.dp))
                     OutlinedButton(enabled = !busy && result.next != null && page < 400, onClick = {
                         run { selected = null; content = pager?.page(page + 1); page++ }
-                    }) { Text("Next") }
+                    }) { Text(stringResource(Res.string.at_next)) }
                 }
                 }
             } else {
                 if (section in setOf(AtSection.ARTISTS, AtSection.RELEASES, AtSection.ACTIVITY)) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AtPeriod.entries.forEach { window ->
-                            FilterChip(window == period, onClick = { loadSection(section, window) }, enabled = !busy, label = { Text(window.label) })
+                            FilterChip(window == period, onClick = { loadSection(section, window) }, enabled = !busy, label = { Text(stringResource(window.label)) })
                         }
                     }
-                    if (loaded.target == AtTarget.TEAL) Text("Teal’s index supplies up to 50 ranks. History date filters do not apply to this view.")
+                    if (loaded.target == AtTarget.TEAL) Text(stringResource(Res.string.at_teal_ranks))
                 }
-                val limitation = loaded.target.limitation(section) ?: "Rocksky activity is available for the 7- or 30-day range."
+                val limitation = loaded.target.limitation(section) ?: Res.string.at_rock_activity
                     .takeIf { loaded.target == AtTarget.ROCKSKY && section == AtSection.ACTIVITY && period == AtPeriod.ALL }
-                limitation?.let { Text(it) }
+                limitation?.let { Text(stringResource(it)) }
                 results?.let { result ->
-                    if (result.values.isEmpty()) Text("No ${section.label.lowercase()} entries on this page.")
+                    if (result.values.isEmpty()) Text(stringResource(Res.string.at_empty_page))
                     result.values.forEach { item ->
                         ListItem(headlineContent = { Text(item.name) }, supportingContent = { item.detail?.let { Text(it) } },
                             leadingContent = { AtArtwork(item.image) }, trailingContent = {
-                                item.actor?.let { did -> TextButton(enabled = !busy, onClick = { actor = did; load(target) }) { Text("Browse") } }
+                                item.actor?.let { did -> TextButton(enabled = !busy, onClick = { actor = did; load(target) }) { Text(stringResource(Res.string.at_browse_actor)) } }
                             })
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = !busy && insightPage > 1, onClick = { run { results = insightWalk?.page(insightPage - 1); insightPage-- } }) { Text("Previous") }
-                        Text("Page $insightPage", Modifier.padding(top = 12.dp))
-                        OutlinedButton(enabled = !busy && result.next != null && insightPage < 400, onClick = { run { results = insightWalk?.page(insightPage + 1); insightPage++ } }) { Text("Next") }
+                        OutlinedButton(enabled = !busy && insightPage > 1, onClick = { run { results = insightWalk?.page(insightPage - 1); insightPage-- } }) { Text(stringResource(Res.string.at_previous)) }
+                        Text(stringResource(Res.string.at_page, insightPage), Modifier.padding(top = 12.dp))
+                        OutlinedButton(enabled = !busy && result.next != null && insightPage < 400, onClick = { run { results = insightWalk?.page(insightPage + 1); insightPage++ } }) { Text(stringResource(Res.string.at_next)) }
                     }
                 }
             }
@@ -200,36 +204,36 @@ internal fun AtBrowseScreen(defaultDid: String?, modifier: Modifier) {
         val likesEnabled = member?.settings?.likes == true && member.missing[ROCKSKY_LIKE].isNullOrEmpty()
         AlertDialog(onDismissRequest = { selected = null }, title = { Text(item.title) }, text = {
             Column {
-                if (!deleteEnabled) Text("Delete requires the owning DID and the delete permission in AT Protocol account settings.")
-                else Button(enabled = !busy, onClick = { run { confirmDelete = atActions.ownRecord(current, item) } }) { Text("Review ${current.target.label} deletion") }
+                if (!deleteEnabled) Text(stringResource(Res.string.at_delete_disabled))
+                else Button(enabled = !busy, onClick = { run { confirmDelete = atActions.ownRecord(current, item) } }) { Text(stringResource(Res.string.at_delete_review, current.target.label)) }
                 when {
-                    current.target == AtTarget.TEAL -> Text(current.target.limitation(AtSection.LOVED).orEmpty())
-                    !likesEnabled -> Text("Rocksky love actions require the owning DID and the love permissions in account settings.")
-                    item.catalogUri == null -> Text("Rocksky does not provide a catalog song for this listen.")
+                    current.target == AtTarget.TEAL -> Text(stringResource(Res.string.at_teal_love_na))
+                    !likesEnabled -> Text(stringResource(Res.string.at_love_disabled))
+                    item.catalogUri == null -> Text(stringResource(Res.string.at_love_no_song))
                     subject == null -> OutlinedButton(enabled = !busy, onClick = { run {
                         val ref = atActions.rockskySubject(item)
                         loved = atActions.matchingLikes(current.identity, ref).isNotEmpty()
                         subject = ref
-                    } }) { Text("Check my Rocksky love state") }
+                    } }) { Text(stringResource(Res.string.at_love_check)) }
                     else -> OutlinedButton(enabled = !busy, onClick = { run {
                         loved = atActions.setLoved(current.identity, subject!!, loved != true)
-                        notice = "Love state confirmed on your PDS. Rocksky’s index may take time to update."
-                    } }) { Text(if (loved == true) "Unlove on Rocksky" else "Love on Rocksky") }
+                        notice = Res.string.at_love_changed
+                    } }) { Text(stringResource(if (loved == true) Res.string.at_unlove else Res.string.at_love)) }
                 }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             }
-        }, confirmButton = { TextButton(onClick = { selected = null }) { Text("Done") } })
+        }, confirmButton = { TextButton(onClick = { selected = null }) { Text(stringResource(Res.string.at_done)) } })
     }
     confirmDelete?.let { ref ->
-        if (current != null) AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text("Delete this ${current.target.label} listen?") }, text = {
-            Text("Only this record revision will be deleted:\n${ref.address.uri}\n${ref.cid}")
+        if (current != null) AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text(stringResource(Res.string.at_delete_confirm, current.target.label)) }, text = {
+            Text(stringResource(Res.string.at_delete_revision, ref.address.uri, ref.cid))
         }, confirmButton = { TextButton(enabled = !busy, onClick = { run {
             confirmDelete = null
             selected = null
             atActions.delete(ref, current.target)
             content = content?.let { it.copy(values = it.values.filterNot { row -> row.id == ref.address.uri }) }
-            notice = "Removed from your PDS. The service index may take time to update."
-        } }) { Text("Delete listen") } }, dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } })
+            notice = Res.string.at_delete_done
+        } }) { Text(stringResource(Res.string.at_delete_listen)) } }, dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(Res.string.at_cancel)) } })
     }
 }
 

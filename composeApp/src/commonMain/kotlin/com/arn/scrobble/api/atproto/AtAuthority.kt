@@ -1,5 +1,8 @@
 package com.arn.scrobble.api.atproto
 
+import com.arn.scrobble.db.AtEnrollment
+import com.arn.scrobble.db.AtEnrollmentStore
+import com.arn.scrobble.db.RoomAtEnrollment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.JsonObject
@@ -13,6 +16,7 @@ import java.net.UnknownHostException
 internal data class AtAccount(
     val identity: AtIdentity?, val method: AtMethod?, val settings: AtSettings,
     val missing: Map<String, Set<String>>, val waiting: Boolean,
+    val problem: AtProblem? = null,
 )
 
 internal enum class AtMutation(val nsid: String, val actions: Set<String>) {
@@ -28,19 +32,44 @@ internal class AtAuthority(
     private val resolve: suspend (String) -> AtIdentity = AtIdentityResolver(public)::resolve,
     private val clock: () -> Long = System::currentTimeMillis,
     private val connected: suspend (String) -> Unit = { atOutbox.retry(it) },
+    private val enrollmentStore: AtEnrollmentStore = RoomAtEnrollment(),
 ) {
     private val oauth = AtOAuth(public, transport, clock)
     private var resourceNonce: Pair<String, String>? = null
     val notices = MutableStateFlow<AtProblem?>(null)
     val changed = MutableStateFlow("")
 
-    suspend fun account(): AtAccount = vault.locked {
-        val choices = state.settings[state.active?.did] ?: AtSettings()
-        val current = state.session?.takeUnless { it.claimed }
-        val missing = if (current?.method != AtMethod.OAUTH) emptyMap() else choices.requested()
-            .mapValues { (collection, actions) -> actions - current.permissions[collection].orEmpty() }
-            .filterValues { it.isNotEmpty() }
-        AtAccount(state.active, current?.method, choices, missing, state.pending?.let { it.expires > clock() } == true)
+    /** Safe in the listener and worker scheduler: no credential file or key access. */
+    suspend fun enrollment() = enrollmentStore.read()
+
+    suspend fun migrateEnrollment() {
+        if (enrollment() != null) return
+        try { vault.locked { adoptEnrollment() } }
+        catch (e: AtFailure) { if (e.problem != AtProblem.STORAGE) throw e }
+    }
+
+    private suspend fun AtVault.Transaction.adoptEnrollment(): AtEnrollment = enrollment() ?: AtEnrollment(
+        state.active, state.settings[state.active?.did] ?: AtSettings(),
+    ).also { enrollmentStore.save(it, resume = true) }
+
+    suspend fun account(): AtAccount {
+        val saved = enrollment()
+        return try {
+            vault.locked {
+                val profile = adoptEnrollment()
+                val choices = profile.settings
+                val current = state.session?.takeIf { it.usable && it.identity.did == profile.identity?.did }
+                val missing = if (current?.method != AtMethod.OAUTH) emptyMap() else choices.requested()
+                    .mapValues { (collection, actions) -> actions - current.permissions[collection].orEmpty() }
+                    .filterValues { it.isNotEmpty() }
+                AtAccount(profile.identity, current?.method, choices, missing, state.pending?.let { it.expires > clock() } == true)
+            }
+        } catch (e: AtFailure) {
+            if (e.problem != AtProblem.STORAGE) throw e
+            // On first POSIX run there is no vault until explicit file opt-in.
+            AtAccount(saved?.identity, null, saved?.settings ?: AtSettings(), emptyMap(), false,
+                if (saved?.identity != null || !atVaultNeedsFileConsent) AtProblem.STORAGE else null)
+        }
     }
 
     suspend fun appPassword(identifier: String, password: String, settings: AtSettings, allowFile: Boolean) {
@@ -52,7 +81,7 @@ internal class AtAuthority(
                 put("identifier", identity.did)
                 put("password", password)
             }.requestBody())
-            install(passwordSession(reply, identity, atSecret()), state.settings[identity.did] ?: settings)
+            install(passwordSession(reply, identity, atSecret()), choices(identity.did, settings))
         }
         connected(identity.did)
     }
@@ -60,7 +89,7 @@ internal class AtAuthority(
     suspend fun beginBrowser(identifier: String, settings: AtSettings, allowFile: Boolean): String {
         val identity = resolve(identifier)
         return vault.locked(allowFile) {
-            val (pending, browser) = oauth.begin(identity, state.settings[identity.did] ?: settings)
+            val (pending, browser) = oauth.begin(identity, choices(identity.did, settings))
             save(state.copy(pending = pending))
             browser
         }
@@ -82,13 +111,22 @@ internal class AtAuthority(
                 "client_id" to AT_CLIENT, "grant_type" to "authorization_code", "redirect_uri" to AT_CALLBACK,
                 "code_verifier" to pending.verifier, "code" to code,
             ))
+            verifyBinding(session, AtProblem.IDENTITY)
             install(session, pending.settings)
             pending.identity.did
         }
         connected(did)
     }
 
-    private fun AtVault.Transaction.install(session: AtSession, settings: AtSettings) {
+    private suspend fun AtVault.Transaction.choices(did: String, fallback: AtSettings): AtSettings {
+        val current = enrollment()
+        return current?.settings?.takeIf { current.identity?.did == did } ?: state.settings[did] ?: fallback
+    }
+
+    private suspend fun AtVault.Transaction.install(session: AtSession, settings: AtSettings) {
+        // Re-arm paused rows and persist intent before saving usable credentials. A crash
+        // between vault commit and enqueue leaves runnable rows for the startup worker.
+        enrollmentStore.save(AtEnrollment(session.identity, settings), resume = true)
         save(state.copy(active = session.identity, session = session, pending = null,
             settings = state.settings + (session.identity.did to settings)))
         notices.value = null
@@ -97,8 +135,11 @@ internal class AtAuthority(
 
     suspend fun settings(did: String, settings: AtSettings) {
         val newlyEnabled = vault.locked {
-            checkAt(state.active?.did == did, AtProblem.RECONNECT)
-            val enabled = settings.completed - state.settings[did]?.completed.orEmpty()
+            val profile = adoptEnrollment()
+            val identity = profile.identity ?: throw AtFailure(AtProblem.RECONNECT)
+            checkAt(identity.did == did, AtProblem.RECONNECT)
+            val enabled = settings.completed - profile.settings.completed
+            enrollmentStore.save(AtEnrollment(identity, settings), resume = enabled.isNotEmpty())
             save(state.copy(settings = state.settings + (did to settings), pending = null))
             enabled.isNotEmpty()
         }
@@ -107,8 +148,9 @@ internal class AtAuthority(
 
     /** Returns false if no remote session revocation could be confirmed; local use is always cleared. */
     suspend fun disconnect(did: String): Boolean = vault.locked {
-        checkAt(state.active?.did == did, AtProblem.RECONNECT)
+        checkAt(adoptEnrollment().identity?.did == did, AtProblem.RECONNECT)
         val session = state.session?.takeUnless { it.claimed }
+        enrollmentStore.save(AtEnrollment(null))
         save(state.copy(session = null, active = null, pending = null))
         notices.value = null
         changed.value = atSecret()
@@ -129,12 +171,13 @@ internal class AtAuthority(
     /** A mutation stays pinned to its DID and session generation until its one-shot response. */
     suspend fun write(did: String, collection: String, mutation: AtMutation, body: JsonObject,
                       clearingStatus: Boolean = false, expectedGeneration: String? = null): AtReply = vault.locked {
-        checkAt(state.active?.did == did && body.text("repo") == did && body.text("collection") == collection, AtProblem.RECONNECT)
-        val settings = state.settings[did] ?: AtSettings()
+        val profile = enrollment()
+        checkAt(profile?.identity?.did == did && state.active?.did == did && body.text("repo") == did && body.text("collection") == collection, AtProblem.RECONNECT)
+        val settings = profile!!.settings
         val allowed = settings.requested()[collection].orEmpty()
         checkAt(allowed.containsAll(mutation.actions) ||
             (clearingStatus && mutation == AtMutation.DELETE && AtTarget.entries.any { it.status == collection }), AtProblem.PERMISSION)
-        var session = state.session?.takeUnless { it.claimed } ?: throw AtFailure(AtProblem.RECONNECT)
+        var session = state.session?.takeIf { it.usable } ?: throw AtFailure(AtProblem.RECONNECT)
         checkAt(expectedGeneration == null || expectedGeneration == session.generation, AtProblem.RECONNECT)
         checkGrant(session, collection, mutation)
         if (session.expires <= clock() + 20_000) session = refresh(session)
@@ -160,9 +203,7 @@ internal class AtAuthority(
     }
 
     private suspend fun AtVault.Transaction.refresh(previous: AtSession): AtSession {
-        val verified = resolve(previous.identity.did)
-        checkAt(verified.pds == previous.identity.pds, AtProblem.RECONNECT)
-        if (previous.method == AtMethod.OAUTH) checkAt(oauth.discover(verified) == previous.issuer, AtProblem.RECONNECT)
+        verifyBinding(previous, AtProblem.RECONNECT)
         // An interrupted request must leave a durable claim rather than risk replaying a rotated token.
         save(state.copy(session = previous.copy(claimed = true)))
         val next = try {
@@ -184,8 +225,15 @@ internal class AtAuthority(
             }
             throw AtFailure(AtProblem.RECONNECT)
         }
+        verifyBinding(next, AtProblem.RECONNECT)
         save(state.copy(session = next))
         return next
+    }
+
+    private suspend fun verifyBinding(session: AtSession, mismatch: AtProblem) {
+        val verified = resolve(session.identity.did)
+        checkAt(verified.did == session.identity.did && verified.pds == session.identity.pds, mismatch)
+        if (session.method == AtMethod.OAUTH) checkAt(oauth.discover(verified) == session.issuer, mismatch)
     }
 
     private fun passwordSession(reply: AtReply, identity: AtIdentity, generation: String): AtSession {
@@ -197,5 +245,7 @@ internal class AtAuthority(
             requireToken(json.text("refreshJwt")), clock() + 30 * 60_000)
     }
 }
+
+private val AtSession.usable get() = !claimed && (method == AtMethod.APP_PASSWORD || grantVersion == 1)
 
 internal val atAuthority = AtAuthority()

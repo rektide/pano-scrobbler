@@ -5,6 +5,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.arn.scrobble.utils.AndroidStuff
@@ -16,10 +17,14 @@ actual object PendingScrobblesWork : CommonWorkImpl(PendingScrobblesWorker.NAME)
     private var scheduledFromBg = false
 
     actual fun scheduleAtDelivery(force: Boolean) {
-        // AT Protocol stages rows before first send; unlike the legacy failure path, every
-        // newly staged batch may be the first work since the worker last finished.
-        if (AndroidStuff.isMainProcess) schedule(force)
-        else WorkEnqueuerReceiver.broadcast(AndroidStuff.applicationContext, name, force)
+        val context = AndroidStuff.applicationContext
+        val name = AtDeliveryWorker.NAME
+        if (!AndroidStuff.isMainProcess) {
+            WorkEnqueuerReceiver.broadcast(context, name, force)
+            return
+        }
+        val (policy, request) = atWorkRequest(force)
+        WorkManager.getInstance(context).enqueueUniqueWork(name, policy, request)
     }
 
     actual fun schedule(force: Boolean) {
@@ -72,4 +77,17 @@ actual object PendingScrobblesWork : CommonWorkImpl(PendingScrobblesWorker.NAME)
                 workRequest
             )
     }
+}
+
+internal fun atWorkRequest(force: Boolean): Pair<ExistingWorkPolicy, OneTimeWorkRequest> {
+    val name = AtDeliveryWorker.NAME
+    val request = OneTimeWorkRequestBuilder<PlatformWorker>()
+        .setInputData(workDataOf(PlatformWorker.WORK_NAME_KEY to name))
+        .addTag(name)
+        .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1L, TimeUnit.MINUTES)
+        .build()
+    // KEEP could drop a newly staged event just as the prior worker returns Success.
+    val policy = if (force) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE
+    return policy to request
 }

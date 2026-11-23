@@ -1,5 +1,7 @@
 package com.arn.scrobble.media
 
+import com.arn.scrobble.api.atproto.atOutbox
+
 import android.app.Notification
 import android.content.ComponentName
 import android.content.Context
@@ -126,6 +128,7 @@ class NLService : NotificationListenerService() {
 
         val sessManager = getSystemService(MediaSessionManager::class.java)!!
         scrobbleQueue = ScrobbleQueue(coroutineScope)
+        coroutineScope.launch { atOutbox.recover() }
 
         sessListener = SessListener(coroutineScope, scrobbleQueue)
 

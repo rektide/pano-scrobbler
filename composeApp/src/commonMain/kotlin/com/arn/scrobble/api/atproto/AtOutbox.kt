@@ -32,41 +32,45 @@ internal class AtOutbox(
     private val tid = AtTid(clock)
 
     suspend fun submit(data: ScrobbleData): Boolean {
-        val account = accountOrNull() ?: return false
+        val account = authority.enrollment() ?: return false
         val identity = account.identity ?: return false
         if (account.settings.completed.isEmpty()) return false
-        val event = tid.next()
         val original = Json.encodeToString(data)
         val rows = account.settings.completed.map { target ->
             val payload = try { data.playRecord(target).toString() } catch (_: AtFailure) { null }
-            AtDelivery(identity.did, event, target.name, data.timestamp, original, payload,
-                state = if (payload == null) "METADATA" else "READY")
+            val canMatch = target == AtTarget.ROCKSKY && account.settings.rockskyMatch && data.canMatchRocksky
+            AtDelivery(identity.did, "", target.name, data.timestamp, original, payload,
+                state = if (payload == null && !canMatch) "METADATA" else "READY")
         }
-        dao().stage(rows)
-        schedule(false) // durable rows exist before foreground or worker can perform a POST
-        drain(event)
+        dao().stageEvent(rows, clock() * 1000, tid.clockId)
+        schedule(false) // no vault access or AT network on the legacy dispatch path
         return true
-    }
-
-    private suspend fun accountOrNull() = try { authority.account() }
-    catch (e: AtFailure) {
-        // No desktop vault exists until opt-in; Android storage failure is surfaced in the account UI.
-        if (e.problem != AtProblem.STORAGE) throw e
-        null
     }
 
     /** Returns whether runnable deliveries remain (including those in retry backoff). */
     suspend fun drain(event: String? = null): Boolean {
-        val account = accountOrNull() ?: return false
-        val identity = account.identity ?: return false
-        if (account.method == null || account.settings.completed.isEmpty()) return false
-        val targets = account.settings.completed.map { it.name }
+        val enrollment = authority.enrollment() ?: return false
+        val identity = enrollment.identity ?: return false
+        val targets = enrollment.settings.completed.map { it.name }
         val dao = dao()
+        dao.pruneConfirmed()
+        if (targets.isEmpty() || dao.countRunnable(identity.did, targets) == 0) return false
+        val account = authority.account()
+        if (account.problem == AtProblem.STORAGE) return true
+        if (account.method == null) return false // successful re-enrollment atomically re-arms and reschedules
         for (row in dao.actionable(identity.did, targets, event, clock())) {
             val claim = atSecret()
             val now = clock()
             if (dao.claim(row.did, row.tid, row.target, row.attempts, claim, now, now + 180_000) != 1) continue
-            val outcome = try { send(identity, row) }
+            val outcome = try {
+                if (row.payload == null) {
+                    val current = authority.enrollment()
+                    checkAt(current?.identity?.did == row.did && AtTarget.ROCKSKY in current.settings.completed && current.settings.rockskyMatch, AtProblem.INPUT)
+                    val matched = public.matchRocksky(Json.decodeFromString<ScrobbleData>(row.original)).toString()
+                    checkAt(dao.freezeMatch(row.did, row.tid, row.target, claim, matched) == 1)
+                    send(identity, row.copy(payload = matched))
+                } else send(identity, row)
+            }
             catch (e: CancellationException) { throw e }
             catch (e: AtFailure) { when (e.problem) {
                 AtProblem.RECONNECT -> Outcome("RECONNECT")
@@ -83,18 +87,23 @@ internal class AtOutbox(
                 "RECONNECT", "PERMISSION" -> retry
                 else -> 0
             }
-            dao.finish(row.did, row.tid, row.target, claim, outcome.state, next, outcome.ref?.address?.uri, outcome.ref?.cid)
+            dao.advance(row.did, row.tid, row.target, claim, outcome.state, next, outcome.ref?.address?.uri, outcome.ref?.cid, enrollment.stamp)
         }
         return dao.countRunnable(identity.did, targets) > 0
     }
 
     suspend fun pending(did: String) = dao().pending(did)
-    suspend fun retry(did: String) { dao().retry(did); schedule(true) }
+    suspend fun recover() {
+        authority.migrateEnrollment()
+        dao().pruneConfirmed()
+        if (hasRunnable()) schedule(false)
+    }
+    suspend fun retry(did: String) { dao().resume(did); dao().retry(did); schedule(true) }
     suspend fun hasRunnable(): Boolean {
-        val account = accountOrNull() ?: return false
+        val account = authority.enrollment() ?: return false
         val did = account.identity?.did ?: return false
         val targets = account.settings.completed.map { it.name }
-        return account.method != null && targets.isNotEmpty() && dao().countRunnable(did, targets) > 0
+        return targets.isNotEmpty() && dao().countRunnable(did, targets) > 0
     }
 
     private data class Outcome(val state: String, val ref: AtRef? = null, val retryAfter: Long? = null)

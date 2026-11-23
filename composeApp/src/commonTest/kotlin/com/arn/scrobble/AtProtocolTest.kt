@@ -2,6 +2,11 @@ package com.arn.scrobble
 
 import com.arn.scrobble.api.atproto.*
 import com.arn.scrobble.api.lastfm.ScrobbleData
+import com.arn.scrobble.db.AtEnrollment
+import com.arn.scrobble.db.AtEnrollmentStore
+import com.arn.scrobble.work.AtDeliveryWorker
+import com.arn.scrobble.work.CommonWorkerResult
+import com.arn.scrobble.work.getWorker
 import com.nimbusds.jose.crypto.ECDSAVerifier
 import com.nimbusds.jwt.SignedJWT
 import kotlinx.coroutines.async
@@ -25,6 +30,39 @@ import kotlin.concurrent.thread
 import kotlin.test.*
 
 class AtProtocolTest {
+    private class EnrollmentFixture : AtEnrollmentStore {
+        private var value: AtEnrollment? = null
+        override suspend fun read() = value
+        override suspend fun save(value: AtEnrollment, resume: Boolean) { this.value = value }
+    }
+
+    @Test fun platformWorkerRouteKeepsAtRetrySeparate() = runBlocking {
+        assertIs<AtDeliveryWorker>(getWorker(AtDeliveryWorker.NAME) {})
+        assertEquals(CommonWorkerResult.Retry, AtDeliveryWorker({}, { true }).doWork())
+        assertEquals(CommonWorkerResult.Success, AtDeliveryWorker({}, { false }).doWork())
+    }
+
+    @Test fun rockskyRequiresEchoedStrongIdentityAndFillsOnlyMissingFields(): Unit = runBlocking {
+        val incomplete = listen.copy(albumArtist = null, extraTags = mapOf("org.musicbrainz.ISRC" to "USABC2400001"))
+        assertTrue(incomplete.canMatchRocksky)
+        assertFalse(incomplete.copy(extraTags = emptyMap()).canMatchRocksky)
+        val hit = """{"isrc":"USABC2400001","album":"Album","albumArtist":"Artist on release","duration":150000}"""
+        Loopback { req ->
+            check(req.path.startsWith("/xrpc/app.rocksky.song.matchSong?"))
+            check(req.path.contains("isrc=USABC2400001"))
+            check(req.headers.none { it.startsWith("Authorization:", ignoreCase = true) })
+            Reply(200, hit)
+        }.use { server ->
+            val wire = server.wire(true)
+            val payload = wire.matchRocksky(incomplete)
+            assertEquals("Artist on release", payload.text("albumArtist"))
+            assertEquals(incomplete.duration, payload.number("duration"))
+            assertFailsWith<AtFailure> { wire.matchRocksky(incomplete.copy(extraTags = emptyMap())) }
+            assertEquals(1, server.requests.size)
+        }
+        assertFailsWith<AtFailure> { verifiedRockskyMatch(incomplete, Json.parseToJsonElement(hit.replace("USABC2400001", "USABC2400002")).jsonObject) }
+        assertFailsWith<AtFailure> { verifiedRockskyMatch(incomplete, Json.parseToJsonElement(hit.replace("Album", "Other release")).jsonObject) }
+    }
     @Test fun callbackRejectsTampering() {
         val raw = "$AT_CALLBACK?code=test&state=opaque&iss=https%3A%2F%2Fauth.example.com"
         assertEquals("https://auth.example.com", parseAtCallback(raw)["iss"])
@@ -41,6 +79,8 @@ class AtProtocolTest {
         val grant = parseScope("atproto repo:fm.teal.feed.play?action=create", request)
         assertEquals(setOf("create"), grant[AtTarget.TEAL.play])
         assertEquals(emptySet(), grant[AtTarget.ROCKSKY.play])
+        val constrained = parseScope("atproto repo:fm.teal.feed.play?action=create&resource=elsewhere repo:app.rocksky.scrobble?action=create&action=*", request)
+        assertTrue(constrained.values.all { it.isEmpty() })
     }
 
     @Test fun frozenShapesAndDistinctTidInSameMillisecond() {
@@ -118,7 +158,8 @@ class AtProtocolTest {
                 }
             }.use { server ->
                 val wire = server.wire(rewrite = true)
-                fun authority() = AtAuthority(AtVault { files }, wire, wire, { AtIdentity(DID, "https://pds.example.com/") }, { now }, {})
+                val enrollment = EnrollmentFixture()
+                fun authority() = AtAuthority(AtVault { files }, wire, wire, { AtIdentity(DID, "https://pds.example.com/") }, { now }, {}, enrollment)
                 val first = authority()
                 first.appPassword(DID, "test-test-test-test", AtSettings(completed = AtTarget.entries.toSet()), false)
                 val restarted = authority()
@@ -152,6 +193,10 @@ class AtProtocolTest {
             var approvedState: String? = null
             var challenge: String? = null
             val proofs = mutableListOf<String>()
+            var now = NOW
+            val wrongChallenge = java.util.concurrent.atomic.AtomicBoolean(false)
+            val changePdsAfterToken = java.util.concurrent.atomic.AtomicBoolean(false)
+            val pdsChanged = java.util.concurrent.atomic.AtomicBoolean(false)
             val requested = AtSettings(completed = AtTarget.entries.toSet())
             Loopback { req ->
                 fun proof(): SignedJWT = SignedJWT.parse(req.headers.single { it.startsWith("DPoP:", true) }.substringAfter(':').trim()).also {
@@ -162,7 +207,7 @@ class AtProtocolTest {
                     proofs += it.jwtClaimsSet.jwtid
                 }
                 val params = "http://fixture.invalid/?${req.body}".toHttpUrl()
-                when (req.path) {
+                when (req.path.substringBefore('?')) {
                     "/pano-scrobbler/oauth-client-metadata.json" -> Reply(200, """{"client_id":"$AT_CLIENT","redirect_uris":["$AT_CALLBACK"],"application_type":"native","dpop_bound_access_tokens":true,"token_endpoint_auth_method":"none","response_types":["code"],"grant_types":["authorization_code","refresh_token"],"scope":"${scope(requested.requested())}"}""")
                     "/.well-known/oauth-protected-resource" -> Reply(200, """{"resource":"https://pds.example.com","authorization_servers":["https://as.example.com"]}""")
                     "/.well-known/oauth-authorization-server" -> Reply(200, """{"issuer":"https://as.example.com","pushed_authorization_request_endpoint":"https://as.example.com/par","authorization_endpoint":"https://as.example.com/authorize","token_endpoint":"https://as.example.com/token","require_pushed_authorization_requests":true,"authorization_response_iss_parameter_supported":true,"client_id_metadata_document_supported":true,"scopes_supported":["atproto"],"token_endpoint_auth_methods_supported":["none"],"dpop_signing_alg_values_supported":["ES256"],"code_challenge_methods_supported":["S256"],"response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"]}""")
@@ -176,28 +221,42 @@ class AtProtocolTest {
                             Reply(201, """{"request_uri":"urn:ietf:params:oauth:request_uri:fixture","expires_in":90}""", "DPoP-Nonce: as-nonce\r\n")
                         }
                     }
+                    "/authorize" -> {
+                        val query = ("http://fixture.invalid" + req.path).toHttpUrl()
+                        check(query.queryParameter("client_id") == AT_CLIENT)
+                        check(query.queryParameter("request_uri") == "urn:ietf:params:oauth:request_uri:fixture")
+                        Reply(302, "", "Location: $AT_CALLBACK?code=fixture&state=$approvedState&iss=https%3A%2F%2Fas.example.com\r\n")
+                    }
                     "/token" -> {
                         val jwt = proof()
+                        if (params.queryParameter("grant_type") == "refresh_token") {
+                            return@Loopback Reply(503, "{}", "Retry-After: 0\r\n")
+                        }
                         check(jwt.jwtClaimsSet.getStringClaim("nonce") == "as-nonce")
                         check(jwt.jwtClaimsSet.getStringClaim("ath") == null)
                         check(atHash(params.queryParameter("code_verifier")!!) == challenge)
+                        if (changePdsAfterToken.get()) pdsChanged.set(true)
                         Reply(200, """{"sub":"$DID","token_type":"DPoP","access_token":"fixture-access","refresh_token":"fixture-refresh","expires_in":600,"scope":"atproto repo:fm.teal.feed.play?action=create"}""", "DPoP-Nonce: as-next\r\n")
                     }
                     "/xrpc/com.atproto.repo.createRecord" -> {
                         val jwt = proof()
                         check(jwt.jwtClaimsSet.getStringClaim("ath") == atHash("fixture-access"))
                         check(req.headers.any { it.equals("Authorization: DPoP fixture-access", true) })
-                        if (jwt.jwtClaimsSet.getStringClaim("nonce") == "resource-nonce") Reply(200, "{}", "DPoP-Nonce: resource-nonce\r\n")
-                        else Reply(401, """{"error":"use_dpop_nonce"}""", "DPoP-Nonce: resource-nonce\r\n")
+                        if (wrongChallenge.get()) Reply(401, "unauthorized", "WWW-Authenticate: Bearer error=\"use_dpop_nonce\"\r\nDPoP-Nonce: unexpected-nonce\r\n")
+                        else if (jwt.jwtClaimsSet.getStringClaim("nonce") == "resource-nonce") Reply(200, "{}", "DPoP-Nonce: resource-nonce\r\n")
+                        else Reply(401, "Use a nonce", "WWW-Authenticate: Bearer realm=\"unrelated\"\r\nWWW-Authenticate: DPoP error=\"use_dpop_nonce\"\r\nDPoP-Nonce: resource-nonce\r\n")
                     }
                     else -> Reply(404, "{}")
                 }
             }.use { server ->
                 val wire = server.wire(true)
-                fun authority() = AtAuthority(AtVault { files }, wire, wire, { AtIdentity(DID, "https://pds.example.com/") }, { NOW }, {})
+                val enrollment = EnrollmentFixture()
+                fun authority() = AtAuthority(AtVault { files }, wire, wire, {
+                    AtIdentity(DID, if (pdsChanged.get()) "https://different.example.com/" else "https://pds.example.com/")
+                }, { now }, {}, enrollment)
                 val browser = authority().beginBrowser(DID, requested, false)
                 assertEquals("as.example.com", browser.toHttpUrl().host)
-                val callback = "$AT_CALLBACK?code=fixture&state=$approvedState&iss=https%3A%2F%2Fas.example.com"
+                val callback = server.browserCallback(browser)
                 authority().finishBrowser(callback)
                 assertFailsWith<AtFailure> { authority().finishBrowser(callback) }
                 val a = AtAddress(DID, AtTarget.TEAL.play, "fixture")
@@ -207,6 +266,25 @@ class AtProtocolTest {
                 assertEquals(2, server.requests.count { it.path == "/par" })
                 assertEquals(1, server.requests.count { it.path == "/token" })
                 assertEquals(2, server.requests.count { it.path.endsWith("createRecord") })
+                wrongChallenge.set(true)
+                assertEquals(401, authority().write(DID, a.collection, AtMutation.CREATE, a.body()).code)
+                assertEquals(3, server.requests.count { it.path.endsWith("createRecord") })
+
+                changePdsAfterToken.set(true)
+                val second = authority().beginBrowser(DID, requested, false)
+                val mismatchedCallback = server.browserCallback(second)
+                assertEquals(AtProblem.IDENTITY, assertFailsWith<AtFailure> { authority().finishBrowser(mismatchedCallback) }.problem)
+                assertFailsWith<AtFailure> { authority().finishBrowser(mismatchedCallback) }
+                assertEquals(2, server.requests.count { it.path == "/token" })
+                pdsChanged.set(false)
+
+                now += 700_000
+                repeat(2) {
+                    assertEquals(AtProblem.RECONNECT, assertFailsWith<AtFailure> {
+                        authority().write(DID, a.collection, AtMutation.CREATE, a.body())
+                    }.problem)
+                }
+                assertEquals(1, server.requests.count { it.path == "/token" && it.body.contains("grant_type=refresh_token") })
             }
         } finally { root.deleteRecursively() }
     }
@@ -263,6 +341,15 @@ class AtProtocolTest {
                     val local = url.toHttpUrl().newBuilder().encodedPath(request.url.encodedPath).encodedQuery(request.url.encodedQuery).build()
                     chain.proceed(request.newBuilder().url(local).build())
                 }
+            }
+        }
+        fun browserCallback(browser: String): String {
+            val redirect = browser.toHttpUrl()
+            val endpoint = url.toHttpUrl().newBuilder().encodedPath(redirect.encodedPath).encodedQuery(redirect.encodedQuery).build()
+            val client = OkHttpClient.Builder().proxy(Proxy.NO_PROXY).followRedirects(false).build()
+            return client.newCall(okhttp3.Request.Builder().url(endpoint).build()).execute().use {
+                check(it.code == 302)
+                checkNotNull(it.header("Location"))
             }
         }
         override fun close() { server.close(); serving.join(1000) }

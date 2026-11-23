@@ -115,6 +115,7 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.okhttp)
             implementation("com.nimbusds:nimbus-jose-jwt:10.9")
+            implementation("io.github.kikin81.atproto:runtime:10.2.0")
             implementation(libs.aboutlibraries.core)
             implementation(libs.kotlin.csv)
             implementation(libs.kermit)

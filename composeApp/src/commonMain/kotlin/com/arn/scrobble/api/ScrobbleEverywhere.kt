@@ -1,6 +1,8 @@
 package com.arn.scrobble.api
 
 import com.arn.scrobble.api.atproto.atOutbox
+import com.arn.scrobble.api.atproto.AtProblem
+import com.arn.scrobble.api.atproto.atAuthority
 
 import androidx.collection.LruCache
 import co.touchlab.kermit.Logger
@@ -26,6 +28,7 @@ import com.arn.scrobble.utils.Stuff
 import com.arn.scrobble.utils.Stuff.mapConcurrently
 import com.arn.scrobble.work.PendingScrobblesWork
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -276,7 +279,13 @@ object ScrobbleEverywhere {
     suspend fun scrobble(scrobbleData: ScrobbleData) {
         Logger.i { "scrobble " + scrobbleData.artist + " - " + scrobbleData.track }
 
-        val hasAtDelivery = atOutbox.submit(scrobbleData)
+        val hasAtDelivery = try { atOutbox.submit(scrobbleData) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) {
+            atAuthority.notices.value = AtProblem.STORAGE
+            Logger.w { "AT Protocol delivery could not be staged" }
+            false
+        }
 
         // track player
         if (scrobbleData.appId != null) {

@@ -21,9 +21,8 @@ internal class AtLive(
     private val lock = Mutex()
 
     suspend fun start(playback: AtPlayback, data: ScrobbleData, stillPlaying: () -> Boolean) = lock.withLock {
-        val account = available { authority.account() } ?: return@withLock
+        val account = available { authority.enrollment() } ?: return@withLock
         val identity = account.identity ?: return@withLock
-        if (account.method == null) return@withLock
         val expires = playback.startedAt + liveLength(data.duration)
         for (target in account.settings.live) {
             if (!stillPlaying() || clock() >= expires) break
@@ -41,7 +40,7 @@ internal class AtLive(
     }
 
     suspend fun stop(playback: AtPlayback) = lock.withLock {
-        val did = available { authority.account() }?.identity?.did ?: return@withLock
+        val did = available { authority.enrollment() }?.identity?.did ?: return@withLock
         AtTarget.entries.forEach { target ->
             available { clear(did, target, playback.token) }
         }

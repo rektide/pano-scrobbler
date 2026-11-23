@@ -2,6 +2,101 @@
 <resources>
     <string name="atproto_account" translatable="false">AT Protocol · Teal and Rocksky</string>
     <string name="atproto_browse" translatable="false">Browse Teal and Rocksky</string>
+    <string name="at_problem_identity" translatable="false">Could not verify the AT Protocol account or its server.</string>
+    <string name="at_problem_metadata" translatable="false">Browser sign-in is unavailable: Pano’s published OAuth metadata could not be verified. You can use an app password instead.</string>
+    <string name="at_problem_callback" translatable="false">Invalid, expired or already-used browser response. Start browser sign-in again.</string>
+    <string name="at_problem_login" translatable="false">Sign-in was rejected. Check the account, app password or provider approval.</string>
+    <string name="at_problem_reconnect" translatable="false">Authorization needed — reconnect the same DID to resume delivery.</string>
+    <string name="at_problem_permission" translatable="false">Destination permission missing — review enabled actions and authorize in the browser.</string>
+    <string name="at_problem_storage" translatable="false">AT Protocol credential storage is unavailable. Enrolled plays stay queued until storage is available.</string>
+    <string name="at_problem_network" translatable="false">Offline or server temporarily unavailable. Try again later.</string>
+    <string name="at_problem_response" translatable="false">Unexpected AT Protocol response.</string>
+    <string name="at_problem_conflict" translatable="false">Record conflict — the existing record was not changed.</string>
+    <string name="at_problem_input" translatable="false">Required track metadata is missing or invalid.</string>
+    <string name="at_connected_return" translatable="false">AT Protocol account connected. Return to Pano’s account settings.</string>
+    <string name="at_account_intro" translatable="false">One account can send to Teal, Rocksky, or both.</string>
+    <string name="at_account_browse" translatable="false">Browse public listening data</string>
+    <string name="at_connected_oauth" translatable="false">Connected · Browser OAuth</string>
+    <string name="at_connected_password" translatable="false">Connected · App password</string>
+    <string name="at_did" translatable="false">Handle or DID</string>
+    <string name="at_send_completed" translatable="false">Send completed plays to %1$s</string>
+    <string name="at_live_toggle" translatable="false">Publish live status on %1$s</string>
+    <string name="at_delete_toggle" translatable="false">Allow deleting my %1$s listens</string>
+    <string name="at_love_toggle" translatable="false">Allow loving and unloving Rocksky songs</string>
+    <string name="at_match_toggle" translatable="false">Send MusicBrainz recording IDs or ISRCs to Rocksky to fill missing play metadata</string>
+    <string name="at_mirror_warning" translatable="false">If you already mirror Teal to Rocksky, select Teal only to avoid duplicate Rocksky plays.</string>
+    <string name="at_allow_posix" translatable="false">Use an owner-only local file (not encrypted; POSIX filesystem required)</string>
+    <string name="at_browser_scope" translatable="false">Browser sign-in grants selected actions and may require reconnecting periodically.</string>
+    <string name="at_browser_login" translatable="false">Sign in with browser</string>
+    <string name="at_browser_reconnect" translatable="false">Authorize or reconnect in browser</string>
+    <string name="at_browser_waiting" translatable="false">Finish approval in your browser. Return here when done.</string>
+    <string name="at_callback_url" translatable="false">Complete callback URL</string>
+    <string name="at_callback_complete" translatable="false">Complete browser sign-in</string>
+    <string name="at_password_intro" translatable="false">Create an app password in your provider’s account settings. This grants broader account access; never enter your primary password here.</string>
+    <string name="at_password" translatable="false">App password</string>
+    <string name="at_password_use" translatable="false">Use an app password</string>
+    <string name="at_disconnect" translatable="false">Disconnect</string>
+    <string name="at_disconnect_explain" translatable="false">Pending plays are paused for this DID. Public history is not deleted, and live status may remain visible until expiry.</string>
+    <string name="at_disconnect_unconfirmed" translatable="false">Disconnected locally; remote session revocation was not confirmed.</string>
+    <string name="at_pending" translatable="false">Pending deliveries</string>
+    <string name="at_listen" translatable="false">Listen</string>
+    <string name="at_pending_retry" translatable="false">Offline/retrying</string>
+    <string name="at_pending_rejected" translatable="false">Record rejected by your provider</string>
+    <string name="at_pending_queued" translatable="false">Queued</string>
+    <string name="at_pending_row" translatable="false">%1$s · %2$s — %3$s</string>
+    <string name="at_retry_paused" translatable="false">Retry paused plays</string>
+    <string name="at_date_error" translatable="false">Enter dates as YYYY-MM-DD.</string>
+    <string name="at_live_error" translatable="false">Live status unavailable.</string>
+    <string name="at_profile_error" translatable="false">Public profile unavailable.</string>
+    <string name="at_public_did" translatable="false">Public handle or DID</string>
+    <string name="at_date_from" translatable="false">From date (UTC, optional)</string>
+    <string name="at_date_through" translatable="false">Through date (UTC, optional)</string>
+    <string name="at_refresh" translatable="false">Load / refresh</string>
+    <string name="at_teal_history" translatable="false">Teal · records on this account’s PDS</string>
+    <string name="at_rock_history" translatable="false">Rocksky · indexed history (may lag the PDS)</string>
+    <string name="at_now_playing" translatable="false">Now playing · PDS</string>
+    <string name="at_cover_lookup" translatable="false">Look up album artwork from Cover Art Archive using the release’s MusicBrainz ID</string>
+    <string name="at_empty_matches" translatable="false">No matching plays on this page. More pages are available.</string>
+    <string name="at_empty_plays" translatable="false">No plays on this page.</string>
+    <string name="at_actions" translatable="false">Actions</string>
+    <string name="at_previous" translatable="false">Previous</string>
+    <string name="at_next" translatable="false">Next</string>
+    <string name="at_page" translatable="false">Page %1$d</string>
+    <string name="at_teal_ranks" translatable="false">Teal’s index supplies up to 50 ranks. History date filters do not apply to this view.</string>
+    <string name="at_rock_activity" translatable="false">Rocksky activity is available for the 7- or 30-day range.</string>
+    <string name="at_empty_page" translatable="false">No entries on this page.</string>
+    <string name="at_browse_actor" translatable="false">Browse</string>
+    <string name="at_delete_disabled" translatable="false">Delete requires the owning DID and the delete permission in AT Protocol account settings.</string>
+    <string name="at_delete_review" translatable="false">Review %1$s deletion</string>
+    <string name="at_love_disabled" translatable="false">Rocksky love actions require the owning DID and the love permissions in account settings.</string>
+    <string name="at_love_no_song" translatable="false">Rocksky does not provide a catalog song for this listen.</string>
+    <string name="at_love_check" translatable="false">Check my Rocksky love state</string>
+    <string name="at_love_changed" translatable="false">Love state confirmed on your PDS. Rocksky’s index may take time to update.</string>
+    <string name="at_unlove" translatable="false">Unlove on Rocksky</string>
+    <string name="at_love" translatable="false">Love on Rocksky</string>
+    <string name="at_done" translatable="false">Done</string>
+    <string name="at_cancel" translatable="false">Cancel</string>
+    <string name="at_delete_confirm" translatable="false">Delete this %1$s listen?</string>
+    <string name="at_delete_revision" translatable="false">Only this record revision will be deleted:\n%1$s\n%2$s</string>
+    <string name="at_delete_done" translatable="false">Removed from your PDS. The service index may take time to update.</string>
+    <string name="at_delete_listen" translatable="false">Delete listen</string>
+    <string name="at_section_history" translatable="false">History</string>
+    <string name="at_section_artists" translatable="false">Artists</string>
+    <string name="at_section_releases" translatable="false">Releases</string>
+    <string name="at_section_activity" translatable="false">Activity</string>
+    <string name="at_section_loved" translatable="false">Loved</string>
+    <string name="at_section_following" translatable="false">Following</string>
+    <string name="at_section_followers" translatable="false">Followers</string>
+    <string name="at_period_week" translatable="false">Last 7 days</string>
+    <string name="at_period_month" translatable="false">Last 30 days</string>
+    <string name="at_period_all" translatable="false">All time</string>
+    <string name="at_teal_love_na" translatable="false">Teal has no verified public music likes or love actions.</string>
+    <string name="at_teal_graph_na" translatable="false">No Teal public social graph is available to Pano.</string>
+    <string name="at_plays_rank" translatable="false">#%1$d · %2$d plays</string>
+    <string name="at_indexed_plays" translatable="false">%1$d indexed plays</string>
+    <string name="at_play_count" translatable="false">%1$d plays</string>
+    <string name="at_rock_profile" translatable="false">Rocksky profile</string>
+    <string name="at_public_profile" translatable="false">Public AT account profile (Bluesky)</string>
     <!-- DO NOT TRANSLATE -->
     <string name="spotify" translatable="false">Spotify</string>
     <string name="lastfm" translatable="false">Last.fm</string>

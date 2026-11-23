@@ -34,10 +34,17 @@ internal fun parseScope(raw: String?, requested: Map<String, Set<String>>): Map<
     val rows = raw.orEmpty().split(' ')
     checkAt("atproto" in rows, AtProblem.LOGIN)
     return requested.mapValues { (collection, allowed) ->
-        rows.asSequence().filter { it.startsWith("repo:$collection?") }.flatMap { it.substringAfter('?').split('&') }
-            .filter { it.startsWith("action=") }.map { it.removePrefix("action=") }.toSet().intersect(allowed)
+        rows.asSequence().filter { it.startsWith("repo:$collection?") }.flatMap { row ->
+            val parameters = row.substringAfter('?').split('&')
+            // Don't erase a constraint by extracting an action from the middle of it.
+            // Accept only this client's unconditional, explicit action vocabulary.
+            if (parameters.distinct().size != parameters.size || parameters.any { it !in unconditionalActions }) emptySequence()
+            else parameters.asSequence().map { it.removePrefix("action=") }
+        }.toSet().intersect(allowed)
     }
 }
+
+private val unconditionalActions = setOf("action=create", "action=update", "action=delete")
 
 internal fun parseAtCallback(raw: String): Map<String, String> {
     checkAt(raw.length <= 16_384 && raw.startsWith("$AT_CALLBACK?"), AtProblem.CALLBACK)
@@ -121,7 +128,7 @@ internal class AtOAuth(private val public: AtWire, private val private: AtWire, 
         val expires = json.number("expires_in") ?: throw AtFailure(AtProblem.RESPONSE)
         checkAt(expires in 1..86_400)
         return AtSession(identity, generation, AtMethod.OAUTH, requireToken(json.text("access_token")), requireToken(json.text("refresh_token")),
-            clock() + expires * 1000, parseScope(json.text("scope"), requested), issuer, signer.copy(nonce = nonce))
+            clock() + expires * 1000, parseScope(json.text("scope"), requested), issuer, signer.copy(nonce = nonce), grantVersion = 1)
     }
 
     suspend fun dpop(url: HttpUrl, signer: AtSigner, body: RequestBody, access: String? = null): Pair<AtReply, String?> {
@@ -137,7 +144,10 @@ internal class AtOAuth(private val public: AtWire, private val private: AtWire, 
             return private.post(url, body, headers)
         }
         val first = attempt(signer.nonce)
-        val challenge = (if (access == null) first.code == 400 else first.code == 401) && first.error == "use_dpop_nonce"
+        val challenge = if (access == null) first.code == 400 && first.error == "use_dpop_nonce"
+            else first.code == 401 && (first.challenges.any {
+                it.scheme.equals("DPoP", ignoreCase = true) && it.authParams["error"] == "use_dpop_nonce"
+            } || first.challenges.isEmpty() && first.error == "use_dpop_nonce")
         val reply = if (challenge && first.nonce != null && first.nonce != signer.nonce) attempt(first.nonce) else first
         checkAt(reply.nonce != null || !reply.ok, AtProblem.RESPONSE)
         return reply to reply.nonce

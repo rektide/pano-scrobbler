@@ -9,6 +9,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.getString
+import pano_scrobbler.composeapp.generated.resources.Res
+import pano_scrobbler.composeapp.generated.resources.at_connected_return
 
 class AtCallbackActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,12 +22,12 @@ class AtCallbackActivity : ComponentActivity() {
         Stuff.appScope.launch {
             val message = try {
                 atAuthority.finishBrowser(callback)
-                "AT Protocol account connected. Return to Pano’s account settings."
+                Res.string.at_connected_return
             } catch (e: CancellationException) { throw e }
-            catch (e: AtFailure) { e.problem.text }
-            catch (_: Exception) { AtProblem.NETWORK.text }
+            catch (e: AtFailure) { e.problem.message }
+            catch (_: Exception) { AtProblem.NETWORK.message }
             withContext(Dispatchers.Main) {
-                Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+                Toast.makeText(applicationContext, getString(message), Toast.LENGTH_LONG).show()
                 finish()
             }
         }

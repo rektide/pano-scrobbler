@@ -14,6 +14,7 @@ class WorkEnqueuerReceiver : BroadcastReceiver() {
 
         when (name) {
             PendingScrobblesWorker.NAME -> PendingScrobblesWork.schedule(force)
+            AtDeliveryWorker.NAME -> PendingScrobblesWork.scheduleAtDelivery(force)
         }
 
         pendingResult.finish()
