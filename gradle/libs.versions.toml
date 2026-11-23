@@ -103,6 +103,7 @@ navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui",
 navigation-event-android = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "navigation-event-android" }
 lifecycle-runtime = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version = "10.10" }
 profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 qrcode = { module = "io.github.g0dkar:qrcode-kotlin", version.ref = "qrcode" }
@@ -138,5 +139,4 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "android-application" }
 graalvm-native = { id = "org.graalvm.buildtools.native", version.ref = "graalvm-native" }
 [bundles]
-
 
