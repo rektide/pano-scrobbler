@@ -105,7 +105,8 @@ class AtprotoMainPrefsTest {
         assertFalse("retired-" in file.readText())
         file.open { prefs ->
             val p = prefs.data.first()
-            assertEquals(before.scrobbleAccounts, p.scrobbleAccounts)
+            // Reconnect replaces destination entries through the existing append path.
+            assertEquals(before.scrobbleAccounts.toSet(), p.scrobbleAccounts.toSet())
             assertEquals(AccountType.ROCKSKY, p.currentAccountType)
             assertFalse(p.scrobblerEnabled)
             assertEquals(false, p.atprotoConnection?.needsReconnect)
