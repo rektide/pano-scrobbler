@@ -1,5 +1,7 @@
 package com.arn.scrobble.main
 
+import com.arn.scrobble.api.atproto.atOutbox
+
 import androidx.annotation.Keep
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
@@ -92,7 +94,7 @@ class MainViewModel : ViewModel() {
 
             val isRunning = PendingScrobblesWork.state().first() == CommonWorkState.RUNNING
 
-            if (hasPending && !isRunning) {
+            if ((hasPending || atOutbox.hasRunnable()) && !isRunning) {
                 PendingScrobblesWork.schedule(force)
             }
         }

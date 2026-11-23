@@ -118,6 +118,9 @@ internal fun AtAccountScreen(modifier: Modifier) {
             password = ""
             run { atAuthority.appPassword(identifier, submitted, settings, allowFile) }
         }) { Text("Use an app password") }
+        if (identity != null) {
+            AtPendingList(identity.did, changed, onRetry = { run { atOutbox.retry(identity.did) } })
+        }
         if (identity != null) OutlinedButton(enabled = !busy, onClick = { confirmDisconnect = true }) { Text("Disconnect") }
     }
     if (confirmDisconnect && identity != null) AlertDialog(
@@ -129,6 +132,33 @@ internal fun AtAccountScreen(modifier: Modifier) {
         }) { Text("Disconnect") } },
         dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Cancel") } },
     )
+}
+
+@Composable
+private fun AtPendingList(did: String, changed: String, onRetry: () -> Unit) {
+    val rows by produceState(emptyList(), did, changed) {
+        while (true) {
+            value = atOutbox.pending(did)
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+    if (rows.isNotEmpty()) {
+        Text("Pending deliveries", style = MaterialTheme.typography.titleMedium)
+        rows.forEach { row ->
+            val target = AtTarget.valueOf(row.target).label
+            val title = runCatching { kotlinx.serialization.json.Json.decodeFromString<com.arn.scrobble.api.lastfm.ScrobbleData>(row.original).track }.getOrNull() ?: "Listen"
+            val reason = when (row.state) {
+                "PAUSED" -> "Authorization needed or destination permission missing"
+                "RETRY" -> "Offline/retrying"
+                "CONFLICT" -> "Record conflict"
+                "METADATA" -> "Required track metadata missing or invalid"
+                "REJECTED" -> "Record rejected by your provider"
+                else -> "Queued"
+            }
+            Text("$target · $title — $reason")
+        }
+        OutlinedButton(onClick = onRetry) { Text("Retry paused plays") }
+    }
 }
 
 @Composable

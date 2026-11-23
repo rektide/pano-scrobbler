@@ -27,6 +27,7 @@ internal class AtAuthority(
     private val transport: AtWire = AtWire(),
     private val resolve: suspend (String) -> AtIdentity = AtIdentityResolver(public)::resolve,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val connected: suspend (String) -> Unit = { atOutbox.retry(it) },
 ) {
     private val oauth = AtOAuth(public, transport, clock)
     val notices = MutableStateFlow<AtProblem?>(null)
@@ -50,14 +51,15 @@ internal class AtAuthority(
                 put("identifier", identity.did)
                 put("password", password)
             }.requestBody())
-            install(passwordSession(reply, identity, atSecret()), settings)
+            install(passwordSession(reply, identity, atSecret()), state.settings[identity.did] ?: settings)
         }
+        connected(identity.did)
     }
 
     suspend fun beginBrowser(identifier: String, settings: AtSettings, allowFile: Boolean): String {
         val identity = resolve(identifier)
         return vault.locked(allowFile) {
-            val (pending, browser) = oauth.begin(identity, settings)
+            val (pending, browser) = oauth.begin(identity, state.settings[identity.did] ?: settings)
             save(state.copy(pending = pending))
             browser
         }
@@ -65,7 +67,7 @@ internal class AtAuthority(
 
     suspend fun finishBrowser(callback: String) {
         val parameters = parseAtCallback(callback)
-        vault.locked {
+        val did = vault.locked {
             val pending = state.pending ?: throw AtFailure(AtProblem.CALLBACK)
             checkAt(pending.expires > clock() && parameters["state"] == pending.state && parameters["iss"] == pending.issuer.origin &&
                 (parameters["client_id"] == null || parameters["client_id"] == AT_CLIENT), AtProblem.CALLBACK)
@@ -80,7 +82,9 @@ internal class AtAuthority(
                 "code_verifier" to pending.verifier, "code" to code,
             ))
             install(session, pending.settings)
+            pending.identity.did
         }
+        connected(did)
     }
 
     private fun AtVault.Transaction.install(session: AtSession, settings: AtSettings) {

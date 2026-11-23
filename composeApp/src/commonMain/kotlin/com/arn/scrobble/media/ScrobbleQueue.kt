@@ -168,7 +168,7 @@ class ScrobbleQueue(
                     sd
                 }
 
-                ScrobbleEverywhere.scrobble(scrobbleSd)
+                ScrobbleEverywhere.scrobble(if (timestampOverride == null) scrobbleSd else scrobbleSd.copy(timestamp = timestampOverride))
             }
 
             trackInfo.scrobbled()

@@ -1,5 +1,7 @@
 package com.arn.scrobble.api
 
+import com.arn.scrobble.api.atproto.atOutbox
+
 import androidx.collection.LruCache
 import co.touchlab.kermit.Logger
 import com.arn.scrobble.api.deezer.DeezerTrack
@@ -274,6 +276,8 @@ object ScrobbleEverywhere {
     suspend fun scrobble(scrobbleData: ScrobbleData) {
         Logger.i { "scrobble " + scrobbleData.artist + " - " + scrobbleData.track }
 
+        val hasAtDelivery = atOutbox.submit(scrobbleData)
+
         // track player
         if (scrobbleData.appId != null) {
             val scrobbleSource = ScrobbleSource(
@@ -294,7 +298,7 @@ object ScrobbleEverywhere {
 
         val pendingScrobblesDao = PanoDb.db.getPendingScrobblesDao()
 
-        val failed = scrobbleResults.isEmpty() || scrobbleResults.values.any { !it.isSuccess }
+        val failed = (!hasAtDelivery && scrobbleResults.isEmpty()) || scrobbleResults.values.any { !it.isSuccess }
 
         if (failed) {
             val services = if (scrobbleResults.isEmpty())
