@@ -2,8 +2,8 @@ package com.arn.scrobble.api
 
 import co.touchlab.kermit.Logger
 import com.arn.scrobble.BuildKonfig
-import com.arn.scrobble.api.cache.HttpMemoryCache
-import com.arn.scrobble.api.cache.HybridCacheStorage
+import com.arn.scrobble.api.atproto.atprotoRecentsClient
+import com.arn.scrobble.api.cache.installPanoHttpCache
 import com.arn.scrobble.api.deezer.DeezerRequester
 import com.arn.scrobble.api.itunes.ItunesRequester
 import com.arn.scrobble.api.lastfm.ApiException
@@ -24,7 +24,6 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpCallValidator
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.UserAgent
-import io.ktor.client.plugins.cache.HttpCache
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
@@ -45,11 +44,14 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Credentials
+import okhttp3.Dns
 import java.io.File
 import java.net.Authenticator
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.PasswordAuthentication
 import java.net.Proxy
+import java.net.UnknownHostException
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
@@ -92,8 +94,13 @@ object Requesters {
 
     val lastfmUnauthedRequester by lazy { LastFmUnauthedRequester() }
 
-    private fun createBaseKtorClient(trustAll: Boolean) = invalidatableLazy {
+    private fun createBaseKtorClient(
+        trustAll: Boolean,
+        requestDns: Dns? = null,
+        redirects: Boolean = true,
+    ) = invalidatableLazy {
         HttpClient(OkHttp) {
+            followRedirects = redirects
             val proxyVal = proxy.value
 
             val proxyJvm = when (proxyVal.type) {
@@ -128,8 +135,10 @@ object Requesters {
             engine {
                 dispatcher = Dispatchers.IO
                 proxy = proxyJvm
+                if (requestDns != null) dns = requestDns
 
                 config {
+                    if (!redirects) retryOnConnectionFailure(false)
                     if (proxyVal.type == MainPrefs.ProxyPrefs.Type.HTTP && proxyVal.hasAuth) {
                         proxyAuthenticator { _, response ->
                             val credential =
@@ -178,6 +187,37 @@ object Requesters {
     private val _baseKtorClient = createBaseKtorClient(false)
     val baseKtorClient by _baseKtorClient
 
+    private val atprotoPublicDns = Dns { host ->
+        val addresses = Dns.SYSTEM.lookup(host).filter(::isPublicAtprotoAddress)
+        addresses.ifEmpty { throw UnknownHostException("No public address for AT Protocol PDS") }
+    }
+
+    private fun isPublicAtprotoAddress(address: InetAddress): Boolean {
+        if (address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress ||
+            address.isSiteLocalAddress || address.isMulticastAddress) return false
+        val octets = address.address
+        val a = octets[0].toInt() and 0xff
+        val b = octets[1].toInt() and 0xff
+        val c = octets[2].toInt() and 0xff
+        return if (octets.size == 4) {
+            a !in listOf(0, 10, 127) && a < 224 && !(a == 100 && b in 64..127) &&
+                !(a == 169 && b == 254) && !(a == 172 && b in 16..31) && !(a == 192 && b == 168) &&
+                !(a == 192 && b == 0 && c in listOf(0, 2)) && !(a == 198 && b in 18..19) &&
+                !(a == 198 && b == 51 && c == 100) && !(a == 203 && b == 0 && c == 113)
+        } else {
+            a and 0xe0 == 0x20 && !(a == 0x20 && b == 0x01 && c == 0x0d && (octets[3].toInt() and 0xff) == 0xb8) &&
+                !(a == 0x20 && b == 0x02)
+        }
+    }
+
+    private val _atprotoPdsClient = createBaseKtorClient(false, atprotoPublicDns, redirects = false)
+    val atprotoPdsClient by _atprotoPdsClient
+
+    private val _atprotoPublicRecentsClient = invalidatableLazy {
+        atprotoPdsClient.atprotoRecentsClient(File(PlatformStuff.cacheDir, "ktor"))
+    }
+    internal val atprotoPublicRecentsClient by _atprotoPublicRecentsClient
+
     private fun createGenericKtorClient(trustAll: Boolean) = invalidatableLazy {
         val baseClient = if (trustAll) {
             val c by createBaseKtorClient(true)
@@ -191,15 +231,7 @@ object Requesters {
             }
 
             if (!Stuff.isRunningInTest) {
-                install(HttpCache) {
-                    val cacheFile = File(PlatformStuff.cacheDir, "ktor")
-                    val memoryCache = HttpMemoryCache(25)
-                    val hybridCache = HybridCacheStorage(
-                        memoryCache = memoryCache,
-                        cacheFile,
-                    )
-                    publicStorage(hybridCache)
-                }
+                installPanoHttpCache(File(PlatformStuff.cacheDir, "ktor"))
             }
 
             install(CustomCachePlugin) {
@@ -231,6 +263,8 @@ object Requesters {
 
     private fun invalidateAll() {
         _baseKtorClient.invalidate()
+        _atprotoPublicRecentsClient.invalidate()
+        _atprotoPdsClient.invalidate()
         _genericKtorClient.invalidate()
         _genericKtorTrustAllClient.invalidate()
         spotifyRequester.invalidateClient()
